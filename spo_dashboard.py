@@ -1,0 +1,749 @@
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+
+# ── SVG icon helpers ───────────────────────────────────────────────────────────
+_H = "xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'"
+def _svg(paths, w=22, sw="1.6"):
+    return (f"<svg {_H} width='{w}' height='{w}' "
+            f"stroke='#f50f12' stroke-width='{sw}'>{paths}</svg>")
+
+ICO_REVENUE  = _svg("<circle cx='12' cy='12' r='9'/><path stroke-linecap='round' d='M12 7v1m0 8v1m-3-5h4a1.5 1.5 0 0 1 0 3H9m0 0h6M9 12h4a1.5 1.5 0 0 0 0-3H9v3Z'/>")
+ICO_QTY      = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M20 7l-8-4-8 4m16 0v10l-8 4m0-14v14M4 7v10l8 4'/>")
+ICO_SPO      = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z'/>")
+ICO_HQ       = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M12 2C8.686 2 6 4.686 6 8c0 5.25 6 12 6 12s6-6.75 6-12c0-3.314-2.686-6-6-6Zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z'/>")
+ICO_PRODUCT  = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M9.5 3.5a6 6 0 0 1 8.485 8.485L5.984 14.015A6 6 0 0 1 9.5 3.5Zm5 17a6 6 0 0 1-8.485-8.485L18.016 9.98A6 6 0 0 1 14.5 20.5Z'/>")
+ICO_DIV      = _svg("<rect x='8' y='2' width='8' height='4' rx='1'/><rect x='3' y='4' width='18' height='17' rx='2'/><path stroke-linecap='round' d='M8 11h8M8 15h5'/>")
+ICO_TREND    = _svg("<path stroke-linecap='round' d='M3 17l5-5 4 4 9-9M21 7h-4V3'/>")
+ICO_STATE    = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3Z'/><path stroke-linecap='round' d='M9 3v15m6-12v15'/>")
+
+SICO_SPO     = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z'/>", w=15, sw="1.8")
+SICO_PERF    = _svg("<path stroke-linecap='round' d='M6 3h12M6 3v6a6 6 0 0 0 12 0V3M6 3H4a2 2 0 0 0 0 4h2m12 0h2a2 2 0 0 0 0-4h-2m-6 12v3m0 0H9m3 0h3'/>", w=15, sw="1.8")
+SICO_TREND   = _svg("<path stroke-linecap='round' d='M3 17l5-5 4 4 9-9M21 7h-4V3'/>", w=15, sw="1.8")
+SICO_TABLE   = _svg("<rect x='3' y='3' width='18' height='18' rx='2'/><path stroke-linecap='round' d='M3 9h18M9 9v12'/>", w=15, sw="1.8")
+SICO_DIV     = _svg("<rect x='8' y='2' width='8' height='4' rx='1'/><rect x='3' y='4' width='18' height='17' rx='2'/><path stroke-linecap='round' d='M8 11h8M8 15h5'/>", w=15, sw="1.8")
+SICO_KPI     = _svg("<path stroke-linecap='round' d='M3 3v18h18'/><path stroke-linecap='round' d='M7 16l4-4 4 4 4-6'/>", w=15, sw="1.8")
+
+SICO_HQ     = _svg("<path stroke-linecap='round' stroke-linejoin='round' d='M12 2C8.686 2 6 4.686 6 8c0 5.25 6 12 6 12s6-6.75 6-12c0-3.314-2.686-6-6-6Zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z'/>", w=15, sw="1.8")
+
+LOGO_SRC = "data:image/png;base64,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"
+
+st.set_page_config(page_title="ENTOD SPO Insight", layout="wide", page_icon="🔴")
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+#root > div:first-child { margin-top: 0 !important; }
+.block-container { padding-top: 0.6rem !important; padding-bottom: 1rem !important; max-width: 100% !important; }
+header[data-testid="stHeader"] { height: 0 !important; min-height: 0 !important; display: none !important; }
+div[data-testid="stToolbar"] { display: none !important; }
+.stDeployButton { display: none !important; }
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+.stApp { background: #0f0f0f; }
+.ticker-outer { width:100%; overflow:hidden; background:linear-gradient(90deg,#b30000,#f50f12,#b30000); border-radius:6px; padding:7px 0; margin:6px 0 18px 0; }
+.ticker-inner { display:inline-block; white-space:nowrap; animation:slide 14s linear infinite; color:#fff; font-weight:600; font-size:0.82rem; letter-spacing:0.04em; padding-left:100%; }
+@keyframes slide { 0%{transform:translateX(0%);} 100%{transform:translateX(-100%);} }
+.kpi-wrap { background:#1a1a1a; border:1px solid #2a2a2a; border-top:3px solid #f50f12; border-radius:10px; padding:16px 14px 14px 14px; text-align:center; transition:border-color 0.2s,box-shadow 0.2s; }
+.kpi-wrap:hover { border-top-color:#ff4444; box-shadow:0 4px 20px rgba(245,15,18,0.15); }
+.kpi-icon { height:26px; display:flex; align-items:center; justify-content:center; margin-bottom:7px; }
+.kpi-label { font-size:0.65rem; font-weight:600; color:#666; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px; }
+.kpi-value { font-size:1.55rem; font-weight:800; color:#f0f0f0; line-height:1; margin-bottom:4px; }
+.kpi-sub { font-size:0.65rem; color:#555; }
+.kpi-green { color:#22c55e !important; }
+.kpi-red { color:#f50f12 !important; }
+.trophy-card { background:#1a1a1a; border:1px solid #333; border-radius:12px; padding:18px 16px; text-align:center; }
+.trophy-name { font-size:1.05rem; font-weight:700; color:#f0f0f0; margin:6px 0 4px 0; word-break:break-word; }
+.trophy-val { font-size:1.4rem; font-weight:800; color:#f50f12; }
+.trophy-sub { font-size:0.7rem; color:#555; margin-top:4px; }
+.sec-hdr { display:flex; align-items:center; gap:8px; margin:28px 0 12px 0; padding-bottom:8px; border-bottom:1px solid #2a2a2a; }
+.sec-hdr span { font-size:0.95rem; font-weight:700; color:#e0e0e0; letter-spacing:0.01em; }
+.chart-label { font-size:0.75rem; color:#666; margin-bottom:4px; font-weight:500; letter-spacing:0.02em; }
+[data-testid="stSidebar"] { background:#111 !important; border-right:1px solid #1f1f1f !important; min-width:210px !important; max-width:210px !important; width:210px !important; }
+[data-testid="stSidebar"] > div:first-child { width:210px !important; padding:0.75rem 0.65rem !important; }
+[data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stCaption { color:#888 !important; font-size:11.5px !important; }
+.sb-logo-wrap { display:flex; align-items:center; gap:10px; padding:4px 0 12px 0; }
+.sb-logo-wrap img { height:44px; width:44px; object-fit:contain; border-radius:6px; }
+.sb-brand-name { font-size:0.95rem; font-weight:800; color:#f50f12; line-height:1.15; }
+.sb-brand-sub { font-size:0.65rem; color:#555; margin-top:1px; }
+h1, h2, h3, h4 { color:#f0f0f0 !important; }
+.stDataFrame { border-radius:8px; overflow:hidden; }
+.stDownloadButton > button { background:#1a0000 !important; border:1px solid #f50f12 !important; color:#f50f12 !important; border-radius:8px !important; font-weight:600 !important; }
+.stDownloadButton > button:hover { background:#f50f12 !important; color:#fff !important; }
+.stMultiSelect span[data-baseweb="tag"] { background:#3a0000 !important; color:#ff6666 !important; }
+div[data-testid="column"] { padding:0 4px; }
+div[data-testid="stHorizontalBlock"] { gap:12px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Helpers
+def fmt_inr(val):
+    if val >= 1e7:  return f"\u20b9{val/1e7:.2f} Cr"
+    if val >= 1e5:  return f"\u20b9{val/1e5:.1f} L"
+    return f"\u20b9{val:,.0f}"
+
+def sec(icon, title):
+    st.markdown(f"<div class='sec-hdr'><span>{icon}&nbsp; {title}</span></div>", unsafe_allow_html=True)
+
+def clabel(text):
+    st.markdown(f"<div class='chart-label'>{text}</div>", unsafe_allow_html=True)
+
+def kpi(col, icon, label, value, sub="", cls=""):
+    with col:
+        st.markdown(f"""
+        <div class='kpi-wrap'>
+          <div class='kpi-icon'>{icon}</div>
+          <div class='kpi-label'>{label}</div>
+          <div class='kpi-value {cls}'>{value}</div>
+          <div class='kpi-sub'>{sub}</div>
+        </div>""", unsafe_allow_html=True)
+
+RED   = "#f50f12"
+BG    = "rgba(0,0,0,0)"
+PAPER = "rgba(0,0,0,0)"
+FONT  = "#aaaaaa"
+GRID  = "rgba(255,255,255,0.05)"
+REDS  = [[0,"#3a0000"],[0.4,"#990000"],[0.7,RED],[1,"#ff6060"]]
+BASE_LAYOUT = dict(
+    paper_bgcolor=PAPER, plot_bgcolor=BG,
+    font=dict(color=FONT, family="Inter", size=11),
+    hoverlabel=dict(bgcolor="#1a1a1a", bordercolor="#333", font=dict(color="#eee", size=12)),
+)
+DEFAULT_MARGIN = dict(l=8, r=8, t=16, b=8)
+CFG = {"displayModeBar":True,"displaylogo":False,
+       "modeBarButtonsToRemove":["select2d","lasso2d","toggleSpikelines","hoverClosestCartesian","hoverCompareCartesian"],
+       "toImageButtonOptions":{"format":"png","filename":"ENTOD_SPO","height":600,"width":1200,"scale":2}}
+
+reds_pie = [RED,"#cc0000","#ff4444","#990000","#ff6666",
+            "#800000","#ff8080","#660000","#ffaaaa","#4d0000",
+            "#ff2222","#aa0000","#ff5555","#770000","#ff9999","#333333"]
+
+
+# ── SPO Directory Lookup (from Entod_Telephone_5325.xlsx) ────────────────────
+_HQ_SPO_DIR = {"AKola": ["Yogesh R. Satao"], "Agartala": ["Pujan Debnath"], "Agartla": ["Rahul Ranjan Shome", "Rajesh Das"], "Agra": ["Abhay Pratap Singh", "Anshul Chauhan", "Brajmohan", "Gaurav Kumar", "Hemant Kumar Daksh", "Kuldeep Sharma", "Praveen", "Saurabh Saraswat", "Sohil"], "Ahilyanagar": ["Bharat Vitthal Ghorpade", "Kuldip Rajaram Takale", "Mujeeb Pathan", "Narayan Somnath Khade", "Ramiz Salim Shaikh", "Ritesh Purushottam Adep", "Sagar Kisan Iwale", "Sharad Pimpale", "Uddhav Dnyandev Mate", "Vikas Manohar Lande", "Vishal Ajinath Pare", "Vishal Ramrao Aglawe"], "Ahmedabad": ["Aashish Surayaprakash Shukla", "Bhavin Kumar Labana", "Chaudhari Shivam Bharatbhai", "Hariom", "Himanshu Vasudevbhai Patel", "Jain Sulabhkumar Satishchandra", "Jayswal Sujitkumar Mishrilal", "Jeetmal Khatik", "Keyur Ashokkumar Upadhyay", "Manish Dubey", "Mohammed Aamir Ansari", "Pandit Gautam Ashvinkumar", "Parmar Maheshbhai Ramjibhai", "Priyank Ghanshyambhai Kachhia", "Raval Chetankumar", "Santosh Ramchandrasinh Kshatriya", "Saraiya Kapil Narottambhai", "Sumit Kumar", "Vakil Ahmad J Ansari", "Vyas Jasmin Ashwinkumar", "Vyas Mayur Sudhirbhai"], "Akola": ["Ajinkya Arun Dandwate", "Nitin Kishor Meshram", "Pravin Jaikrishna Mehare"], "Alappuzha": ["Abhijith A", "Arjun S"], "Aligarh": ["Durgesh Babu", "Rishab Verma", "Vikas Sharma"], "Alleppey": ["Pradeep V M", "Vishnu Manoharan"], "Alleppy": ["Sajith Kumar S.", "Shimon V T", "V. Sree Kumar"], "Ambala": ["Dinesh Kumar", "Nitin Kush", "Sanjeev Brar"], "Ambikapur": ["Hrishimukesh Napit"], "Amravati": ["Akshay Bhaskarrao Rajgure", "Chetan Bhaskar Papalkar", "Nitin Vijay Chaudhari", "Parag P. Kale"], "Amritsar": ["Harminder Singh Bedi", "Jatinder Pal Singh", "Mandeep Singh", "Rahul Chawla", "Satnam Singh"], "Anantapur": ["Battala Yaswanth"], "Anantapur,Kurnool": ["M. Chandra Mohan Reddy"], "Anantnag": ["Arif Hussain Shah", "Danish Nisar Malik", "Mushtaq Ahmad Bhat", "Nazir Ahmad Lone", "Zahid Ahmad Bhat"], "Andheri": ["Chintan Bhavin Barot", "Nayan Ravindra Shinde", "Sunil Banwari Prajapati", "Vaibhav Shankar Sanap"], "Angul": ["Vivekananda Moharana"], "Arambag": ["Santanu Khan"], "Asansol": ["Md.Tausif Khan", "Subhendu Roy", "Susanta Layek"], "Balangir": ["Bikash Mishra", "Kranti Kumar Bhoi"], "Balasore": ["Amrit Nayak", "Bhabani Shankar Behera", "Biswajit Samal", "Deepak Kumar Biswal", "Manoranjan Nayak", "Prabir Kumar Panda"], "Bandra": ["Shyam Kumar Shobhanath Yadav"], "Bangalore": ["A V Lohith", "Abdul Hassan Islam", "Abhinav Mandalgi", "Ashok Kumar K.", "Bhoopal Reddy C K", "Dasappa Gari Beligerappa", "Deepak Raj K.", "E Manoj", "Edagottu Sreenivasulu", "Govindaraju", "Hamsaraj S", "Jagadisha G", "Karthik", "Krishna A Patil", "M Mahendra Gowd", "M. D. Manjunath", "Mahalingappa Giri Nagarjuna", "Manjunath", "Manjunath B A", "Mohd Belal", "Nagesh R D", "Naveen Kumar B M", "Niranjan Yadav R", "Nur Alom Sheikh", "Prajwal V", "Pruthviraj R N", "R Purushothama", "Rajesh S.", "Ruthvik M M", "Saikumara R O", "Sathish kumar", "Savireddy Madhava Reddy", "Sujan Kumar N A", "Thirumalesha H M", "Vinod B", "Wahidur Rahman"], "Baramulla": ["Basit Yaseen Mir", "Mohammad Saad Bhat", "Mudasir Majeed Dar"], "Barasat": ["Souvik Biswas"], "Bareilly": ["Akarsh Yadav", "Mohit Kumar Yadav", "Rohit Pal", "Shivang Sharma", "Vivek Shrivastav"], "Baripada": ["Basanta Kumar Rana", "Ripan Kumar Nayak"], "Baroda": ["Amit Bharatkumar Bhatiya", "Javedhusain Dudhwala", "Manishkumar Kanchanlal Parmar", "Nasir Khan Abbas Khan Pathan", "Nilesh Dange", "Urvesh J. Thakkar"], "Baroda-1": ["Manish Bhartsinh Bhati"], "Barpeta": ["Dilbar Ahmed"], "Barrackpore": ["Govindo Ghosh", "Kaushik Ghosh"], "Baruipur": ["Avijit Das"], "Basirhat": ["Amit Palit", "Arijul Rahaman"], "Beed": ["Akshay Vasudev Sawase", "Angad Vamanrao Nalawade", "Babu Kalyan Yadav", "Hanuman Dashrath Bahir", "Santosh Namdev Antarkar"], "Begusarai": ["Amit Kumar"], "Behrampur": ["Jadukula Tilaka Rath"], "Belgaum": ["Gururaj Ningappa Kabnuri", "Rizwan Makandar", "Rohit Hanamant Telkar", "Subhani Sikandar Madarsha", "Vijay Payappa Sangodi"], "Bellary": ["Krishna J"], "Bengaluru": ["Niranjan Kakodkar"], "Berhampore": ["Bappadittya Biswas"], "Berhampur": ["Bhandi Pradip Kumar", "Biplab Mandal", "Biranchi Narayan Satapathy", "Prashanta Kumar Hota", "Sujit Kumar Saha"], "Berhumpur": ["Pintu Mandal", "Sanjoy Mujumdar"], "Bhadrak": ["Chandrakanta Behera"], "Bhagalpur": ["Apur Kumar Das", "Binay Shankar Ray", "Harish Kumar Jha", "Rupesh Kumar Singh", "Sujit Kr. Singh"], "Bharatpur": ["Amit Agarwal"], "Bhatinda": ["Kapil Chhabra", "Rohit Kalia", "Shobit Garg", "Vacant"], "Bhavnagar": ["Niranjangiri Dhirajgiri Gauswami", "Rahul Devajibhai Makwana", "Rathod Jaydip Harshadbhai"], "Bhimavaram": ["Mohammed Shahid Ali"], "Bhopal": ["Kapil Mokhere", "Ravi", "Shubham Bundela", "Yogesh Shrivastava", "Zaid Imran Ansari"], "Bhubaneshwar": ["Anuja Kumar Nath", "Bhagya Bhusan Mahapatra", "Hemanta Kumar Swain", "Partha Sarathi Sahoo", "Ramesh Chandra Bijuli", "Sailesh Mohanty", "Sashikanta Swain", "Soubhagya R.Behuria", "Soumya Ranjan Samantasinghar", "Subash Mishra"], "Bhubaneswar": ["Asutosh Swain", "Rashmi Ranjan Nayak", "Satyabrata Sahoo"], "Bhusawal": ["Rahul H. Chaudhary"], "Bijapur": ["Dundappa R.Kadechur", "Gururaj L Kulkarni", "Mohammad Muzzamil Attar", "Siddanna Shivanand Karajanagi"], "Bikaner": ["Deepak Sharma", "Vishvas Sharma", "Yashwant Bagri"], "Bilaspur": ["Nemkumar Sahu", "Pappu Sahu", "Prakash Shrivas", "Ravinarayan Sahu"], "Bolangir": ["Binaya Kumar Das", "Manoj Kumar Pasayat", "Niranjan Jena"], "Borivali": ["Mrs.Rubina Ismail Patel"], "Buldhana": ["Shyam Wankhade"], "Burdwan": ["Asish Rudra", "Pallab Gupta", "Santanu Ghosh", "Somnath Sen", "Souvik Das"], "C.Kolkata": ["Abhishek Nandi Mazumdar"], "C.Mumbai": ["Dayanand Shesherao Biradar", "Saurabh Dubey"], "Calicut": ["Aswanth T P", "Benoy P", "Jibinlal P", "Nidheesh", "Prajeesh Kumar. P", "Rahul P.", "Ranju K.P.", "Rumith K.P.", "Suneesh. K", "Vipin T"], "Central Mumbai": ["Jayaseelan Santhiagu Koundar"], "Chandigarh": ["Abhishek Walia", "Alok Ranjan Singh", "Bharti", "Himanshu Gupta", "Jaspreet Kaur", "Manpreet Singh", "Ms.Oshin Sharma", "Neeraj Kumar", "Rohit Popli", "Sourabh Chandel"], "Chandrapur": ["Chetan Dilip Wasekar"], "Chennai": ["A. Imran", "Abdul Azeez S", "Abdul Rahman A", "Akashkumar A", "Ansari I", "B.Saravanan", "Boobala Krishnan D", "Dominic A.", "Habibur Rahman N", "J Dhayalan", "J N Abinash", "M Mohammed Yusuf", "Manickaraj R", "Mohamed Afsal", "Mohammed Jaffer M", "Mohd Rafi S.", "Noorul Aman J", "Parthiban Mani", "R Mohammed Wasim", "Rajarajeshwaran", "Ramachandran K V", "S. Tamizarasu", "T. Jothilingam", "V. Manikandan", "Vinoth M"], "Chh.Sambhajinagar": ["Deshmukh Mohsin Ahmed Mateen Ahmed", "Ganesh Shekuba Ghule", "MustajibuddinWaheeduddin Deshmukh", "Ranjan Jalandar Jadhav", "Vaibhav Bhaskar Kolte"], "Chh.Sambhajinagar -2": ["Sameer Dilip Deshmukh"], "Chhatarpur": ["Rajkumar Mishra"], "Chhindwara": ["Anil Verma"], "Coimbatore": ["Anandhan D", "Brundha R.", "Faizal. A", "Kalaivanan B.", "Krishnamoorthi S", "Mohamed Rajeep Rabeek", "Mohammed Nikash S", "N Sathish Kumar", "S Matheshwaran", "Shyam T M", "T. Jamuna", "V. Radhakrishnan"], "Coochbeher": ["Avijit Saha"], "Cuttack": ["Durbasha Pattnaik", "Pankaj Moharana", "R K Swain", "Ramakant Muduli", "Samarendra Raul", "Sk MehraJ Ali", "Smruti Ranjan Mohapatra", "Subrat Kumar Dash"], "Daltonganj": ["Anuj Kumar Pandey"], "Darbhanga": ["Abinash Kumar Jha", "Durgesh Kumar", "Ranjeet Kumar"], "Davangere": ["Dinesh G", "Kirana Kumara K L", "Naveena Kumara G", "Shreekant M S", "Yogeesh C"], "Deharadun": ["Ravi Kant", "Suresh Kumar"], "Dehradun": ["Abhay Sharma", "Bhagwati Prasad Purohit", "Ravendra Singh", "Santosh Singh"], "Delhi": ["Akash", "Akshay Bhalla", "Ankit", "Ankit Sharma", "Ausan Singh", "Gunja Kumari", "Himanshu Dubey", "Manish Singh", "Mohammad Abu Zaid", "Mohd Ayan", "Niraj Kumar Singh", "Pawan Kashyap", "Punit Sharma", "Ram", "Sunil Kumar", "Tarun Pathak", "Vijender", "Vikas Mani"], "Delhi Institutional South Delhi": ["Haribabu Sahu"], "Dhabhanga": ["Saied Zakir"], "Dhanbad": ["Achinto kumar Mandal", "Ajit Kumar Pathak", "Brajesh Kumar Rajan", "Ganesh Kumar Thakur", "Nayan Kumar Tiwary"], "Dhavangere": ["Shankar S P"], "Dhenkanal": ["Deepak Kumar Das"], "Dhule": ["Chetan Kailas Ghalme", "Hemant Vaidya", "Tushar Vasudeo Upakare"], "Dibrugarh": ["Kaushik Dutta", "Prasanjit Gupta", "Pritom Banikya", "Sankar Jyoti Kakoti"], "Dindigul": ["A .Annanithi"], "Durg": ["Sheikh Sameer"], "E-Delhi": ["Adarsh Tiwari", "Anurag Sharma"], "East Chennai": ["Arun Kumar G"], "East Delhi": ["Dilshad", "Gaurav Kumar", "Indresh Kumar Tiwari", "Sonu Pipaniya"], "Eluru": ["Guttula Chakravarthi", "Shaik Imran"], "Entire West Bengal (Kolkata Pool, Barasat, Berhampur, Siliguri,Howrah), Entire Orissa": ["Sujoy Nandi"], "Ernakulam": ["Aneesh Kumar", "Bidhin P C", "C.Sathyan", "Dino Daison", "Dinoop D.R.", "Jobish Joshi N.", "Lijoy C X", "Pranav K U", "Riju James", "Sagio Simon", "Sarath K S", "Shefeek K.M.", "Shijo Francis P. J"], "Ernakulam ( Cochin )": ["Bilal E A"], "Ernakulam,Cochin": ["Rejeeshkanth K.M."], "Erode": ["Balaji S", "G.Raja", "Gopalakrishnan K", "Mariraja Ramu"], "Faizabad": ["Amit Kumar Shukla", "Anurag Kumar Pandey"], "Faridabad": ["Hemender Kumar", "Mukesh"], "Forbesganj": ["Sumit Kumar"], "Gaya": ["Bittu Kumar", "Md Shahid", "Pankaj Kumar", "Raman Kumar Srivastava"], "Ghatkopar": ["Anurag Nagendra Pal", "Arunkumar Satiram Prajapati", "Krishna Prem Singh"], "Ghatkoper": ["Pravin P. Giri"], "Ghaziabad": ["Ashish Sharma", "Gaurav Tyagi", "Govinda", "Mohit Sharma", "Nikhil Sharma", "Rahul Rana", "Sahil Saifi"], "Giridih": ["Ranjan Kumar"], "Goa": ["Anil Shrikant Naik", "Manish Madhukar Shirodkar", "Namdev Shankar Mohite", "Ramkrishna Jakoba Pednekar", "Vinay Laxman Sawant", "Vishal Deepak Pednekar"], "Gonda": ["Rajan Chaurasiya"], "Gorakhpur": ["Abhishek Shukla", "Adil Ayub Khan", "Anand Mohan Gupta", "Manish Kumar Shukla", "Surya Prakash Rai"], "Gulbar": ["Mallikarjun"], "Gulbarga": ["Gurubheem Shorapurkar", "Kishorkumar", "Rajshekhar", "Siddaram S H", "Vinay Kumar"], "Guntur": ["Naresh Bhima", "Shaik Moulali", "Sk. Nazeer", "Thirupathi Veeranjaneyulu", "Yenikapalli Venkata Chenchu Krishna"], "Gurgaon": ["Kafeel UI Rehman", "Prabhakar Pratap Chand"], "Gurugram": ["Pankaj Goyal", "Sandeep Gupta", "Sushil Kumar"], "Guwahati": ["Akash Shil", "Angikar Adiel Basumatari", "Apurba Kumar Bora", "Ashim Dutta", "Bhrigu Kumar Kalita", "Dharjyasheel Deka", "Dipjyoti Sarma", "Jeherul Haque", "Kalyan Tamuly", "Niranjan Kalita", "Pankaj Goswami", "Pranjal Goswami", "Ratul Kumar Kazi", "Saitendra Kumar Das", "Tridib Das"], "Guwahati1": ["Amal Thakuria"], "Guwahati2": ["Pranjyoti Deka"], "Gwalior": ["Arvind Sharma", "Chandra Prakash Suryavanshi", "Irshad Ali", "Vinod Sharma"], "Haldwani": ["Manoj Kumar Joshi", "Tara Singh Adhikari"], "Hazaribag": ["Indrajeet Kumar"], "Hingoli": ["Mukesh Madhukar Satav"], "Hisar": ["Ajay"], "Hissar": ["Gourav Lalit", "Rahul"], "Hooghly": ["Achinta Chatterjee", "Bishwajit Adhikari", "Sambit Chakraborty", "Soumo Bhandari", "Suprovat Das"], "Howrah": ["Amit Chakraborty", "Arpan Maity", "Manna Chowdhury", "Rudrendu Sarkar", "Sandipan Basu", "Sibnath Thakur"], "Hubli": ["Arshad Khan Lodhi", "Kiran Ingalaki", "Manju Gaddad", "Nitin Vivekanand Devadas", "Prashant G Naik", "Praveen B Gudigeri", "Ramesh Begur Nadiger", "Rayanagounda S Kotur", "Santosh Shivashimpar", "Shashikumar Ningappa Nagnur", "Veeresh B Shirol", "Vijay Gundappa Kalappanavar"], "Hyderabad": ["Aakarapu Rajender Reddy", "Arroju Kiran", "B. Sudhakar", "Balaraju Raja Sekhar Raju", "Biduduri Bala Krishna Reddy", "Bogoju Saikumar", "Boyini Karthik Kumar", "Devaraj Kumar", "Dhasharath R", "Kayitha Ashok Kumar", "M. Santosh Kumar", "M.A. Wahab", "M.A.Mujeeb", "Mogili Latheesh", "Mohd Faheem Uddin", "Mukkamla Mallesh", "Nagaraju Kotte", "Panasam Naveen Kumar", "Pasumola Hari Krishna", "Pathulothu Kishan", "Ramprasad Sarikonda", "S. Ashok Raju", "Satheesh Sirikonda", "Shaik Mastan", "V.Rajashekhar", "Vemula Kranthi Kumar", "Vijayapuram Venu", "Vikas Kumar"], "Hyderabad-1": ["Kurnam Baswaraj"], "Hyderabad-3": ["Pushpendra Singh"], "Imphal": ["Luddi Thongam", "Saikhomba Thongam", "Salam Rohit"], "Indore": ["Ajay", "Ajay Bundela", "Amit Kumar Tiwari", "Amit Singh Verma", "Irfan", "Jitendra Soni", "Karan Bangadiya", "Komal Patel", "Nilesh Mohite", "Prabhat Vyas", "Pravin Pal", "Rahul Jangir", "Rais Mansuri", "Shailendra Sharma", "Shubham Dangi", "Shyam Ji Khare", "Shyamlal Choudhary", "Sudhanshu Parmar", "Sumit Mandloi", "Vijay", "Vineet Ojha"], "Jabalpur": ["Amarjeet Gupta", "Anuj Gupta", "Ashish Kumar Jaiswal", "Reetesh Rathore", "Robin Banerjee", "Sourabh Patel", "Sukh Deepak Shukla", "Vinayak S. Mishra"], "Jaipur": ["Ajay Kumar Nagar", "Amit Katta", "Deepak Saini", "Kuldeep Katara", "Mahesh Chandra Sharma", "Man Singh", "Manish Rathi", "Manoj Kumar", "Megh Raj Yadav", "Mohd Mustkeem", "Neelaksh Singh", "Rahul Rathi", "Rahul Sharma", "Rajesh Kumar Yadav", "Rakesh Saini", "Ramvilash Sharma", "Saurabh Kumar Sharma", "Sunil Yadav", "Vimal Kumawat", "Yogesh Khurana"], "Jaipur,": ["Om Prakash Saini"], "Jajpur": ["Dharmendra Barik"], "Jalandhar": ["Ashish", "Kunal Joshi", "Raman Kumar", "Rohit Rana", "Shivam Shrivastav", "Shubham Jaswal"], "Jalgaon": ["Abhijit Balasaheb Devre", "Jitendra Pravin Borse"], "Jalgoan": ["Manoj Raghunath Mahajan"], "Jalna": ["Amol Appasaheb Kawle"], "Jammu": ["Arun Singh", "Pradeep Singh Chib", "Shubham Kumar"], "Jamshedpur": ["Amit Dutta", "Debyendu Kanti Ghosh", "Rupam Chatterjee", "Soumen Bhowmick", "Subhasis Kumar Shaw", "Sudip Das", "Supriyo Pal", "Tapas Singh"], "Jeypore": ["Ajit Kumar Das"], "Jhansi": ["Avinish Kumar", "Naman Tiwari", "Ramakant Namdev"], "Jhunjhunu": ["Rohit Sharma"], "Jodhapur": ["Nikhil Arora", "Ravi Shankar Sharma"], "Jodhpur": ["Omprakash", "Onkar Singh", "Saif Akis", "Surendar Sen", "Vijendra Singh Rathore"], "Jorhat": ["Dayal Krishna Bhuyan"], "Kadapa": ["Reddy. Venkata Nagendra"], "Kalyan": ["Chetan Mukund Ambade", "Gyanendra Sevak Sharma", "Santosh Bodke", "Vibhu Shukla", "Virendra Mani R. Tripathi"], "Kangra": ["Akshit Sharma", "Ashish Dhiman"], "Kannur": ["Arun Kumar A P", "Dhanesh P M", "Jijil Pradeep", "Mahesh V.V.", "Shibin P V", "Sreejith Kumar. N.V.", "Vipul Padman"], "Kanpur": ["Puneet Gupta", "Sumit Kumar Dhore"], "Karimnagar": ["Annadi M. Reddy", "Harish Kasarla", "Mamunuri Ramana Chary", "Mora Prasad", "Nagishetti Srikanth", "Uppula Anil Kumar"], "Karnal": ["Mohit Rohila", "Rinku Rawal", "Sonu"], "Kasaragod": ["Aruna B", "Sanath Kumar S Rai"], "Katihar": ["Mahtab Alam"], "Keonjhar": ["Abinash Sahoo"], "Khammam": ["Ranganath Bandavaram"], "Khandwa": ["Sagar Tamrakar"], "Khargone": ["Kapil Choudhary"], "Kishnanganj": ["Md Mustak Munna"], "KolKata": ["Santanu Kundu"], "Kolhapur": ["Ashitosh Anandrav Desai", "Mahesh Madhukar Chitruk", "Prathamesh Chandrakant Mudugade", "Rahul Bhauso Koli", "Ruturaj S. Sutar", "Somnath Bapuso Mane", "Somnath Suryakant Mane", "Subrata Sarkar", "Tushar Sunil Kesarkar", "Vinayak Yuvraj Bogar", "Yuvraj Shivaji Patil"], "Kolkata": ["Abhishek Dhar Barman", "Ajitesh Mondal", "Anupam Ghosh", "Arghya Ranjan Sengupta", "Arijit Das", "Avinash Shah", "Ayan Biswas", "Bikash Paul", "Bishal Sen", "Biswajit Mondal", "Debojyoti Chakraborty", "Dibyendu Das", "Dipankar Das", "Kalyan Sundar Nath", "Nilanjan Basak", "Pradip Kumar Ghosh", "Prashanta Halder", "Rabin Mondal", "Sahil Mondal", "Samir Kumar Sardar", "Sanjoy Banerjee", "Soumik Kumar Sanyal", "Sourav Bairagi", "Subhajit Kundu", "Subhankar Dey", "Subhasis Talukder", "Suman Chakraborty", "Suman Dey", "Suman Goswami", "Suman Nag", "Supriya Saha", "Suvankar Das"], "Kolkata North": ["Pran Gopal Sarkar"], "Kolkatta": ["Biswarup Bardhan"], "Kollam": ["Prajith P M", "Ragesh Krishnan", "Remal Krishnan R", "Renjith Chandran", "Sandeep Kumar S", "Shyam K Mohan", "Unni M", "Varun G Krishna"], "Kopargaon": ["Devidas Shrikant Shevate", "Rahul Mohanrao Thorat", "Shaik Samarhusen Mohsin", "Swapnil Dhanraj Pardeshi"], "Kota": ["Avinash Sharma", "Firoz Khan", "Javed Khan", "Kuldeep Kumar Nagar", "Naveen Pal", "Sunil Saxena"], "Kottayam": ["Ajith P Ashok", "Anumon V P", "Vipin Kumar S", "Vivek Kumar M.V."], "Kurnool": ["Chavitla Nagaraju", "Erukulasaikrishna", "Jonnagiri Janakirami Reddy", "Mohammed Shareef"], "Lakhimpur": ["Naimish Kumar Awasthi"], "Latur": ["Ajay Panditrao Kadam", "Akash Tukaram More", "Panchbhai Niyaj Ahemad Abdul Shukur", "Sambhaji Jalindar Chavan", "Sujit Madhukar Shetkar", "Vinod Chavan"], "Lucknow": ["Ajay Kumar Mishra", "Anand Patel", "Archit Garg", "Bhaskar Dinesh Singh", "Gaurav Srivastava", "Kripashanker Tiwari", "Kuldeep Dixit", "Mohd Nihal", "Neetesh Awasthi", "Paritosh Dhiman", "Raju Rai", "Rohit Kumar Maurya", "Rudre Pratap Singh", "Sarthak Awasthi", "Shivam Singh", "Vacant", "Vaibhav Mishra", "Varunendra Pathak", "Vikas Srivastava"], "Ludhiana": ["Amandeep Singh", "Shobhit", "Simranpal Singh Lakhanpal"], "Madurai": ["A. Paul Raj", "Karthickraja", "M Kather Meeran", "M Siraj Deen", "Mahesh Kumar V", "Marimuthu A", "R Mahamuneeshwaran Raja", "S Mohamed Jammin", "Vairamuthu Annadurai", "Vigneshwaran Pandian S ."], "Malad": ["Iliyas Mohid Ahmed"], "Malappuram": ["Ajin E", "Mohanan V.N.", "Mohd. Ameer P P"], "Malda": ["Subrata Ghosal", "Sumanta Das"], "Mangalore": ["Lakshmeesha A Bangera", "M.S. Jayaram", "Paramesha K", "Prathish Acharya", "Raghavendra A", "Vinayaka"], "Manjeri": ["Ajeesh M", "Akhil V K", "Febin. C", "Sreedas Nair V A"], "Manjery": ["Vijesh K"], "Manjiri": ["Nithin Das K V"], "Medipatnam": ["Beerappa"], "Mednipore": ["Shantanu Dutta"], "Meerut": ["Ankit Kumar", "Ankur Giri", "Anup Kumar Singh", "Bhavishya Kaushik", "Deepak Sharma", "Kapil Sharma", "Mohd Aslam", "Suryansh Sharma"], "Midnapore": ["Amit Das", "Amit Maji", "Santu Das", "Suvadip Paul"], "Mira Bhayandar": ["Sravan Kumar Sharma"], "Moradabad": ["Dharmesh Sharma", "Jitendra Kumar"], "Mulund": ["Arvind Prajapati", "Narendraprasad Devidutt Kaluni"], "Mumbai": ["Arvind Firtu Maurya", "Ashraf Ali", "Awakash Laljee Singh", "Brijesh Kumar Yadav", "Chandrakant Balbir Chhetri", "Dharmendra Basant Singh", "Dinesh Verma", "Gautam Angad Sahani", "Harendra Shivchandra Yadav", "Jaikannan S Pillai", "Mrs.Madhavi Govind Kegade", "Pal Abhishek Jayprakash", "Pradeep Omkarnath Pandey", "Prasad Prabhakar Morajkar", "Ramprakash Badhai", "Ritesh Haushila Dubey", "Sagar Rajkumar Desai", "Shashank Bhalchandra Thakur", "Snehal Sachin Dhoke", "Yadav Sushmita Mahendra"], "Mumbai - Kalyan": ["Ashwin Jaiprakash Rai"], "Mumbai Borivali": ["Sidharth Mishra"], "Muzaffarpur": ["Mukul Kumar", "Ravish Raj", "Rohit Kumar", "Shivendra Kumar", "Sudhanshu Choudhary", "Sudhir Kumar Jha", "Vikash Kumar Singh"], "Mysore": ["Ayubulla Rahman Shariff", "Muyeen Nawaz"], "N-Delhi": ["Gaurav Yadav", "Shubham Tiwari", "Tulsi Ram Yadav", "Vijay Vishwakarma"], "Nadia": ["Arup Pramanick"], "Nagaon": ["Pranjit Debnath", "Priyangkar Tamuly", "Rajib Singh"], "Nagpur": ["Aditya Ravindra Mendhe", "Akshay Pachpor", "Anand Devdas Meshram", "Aniket Edlabadkar", "Ashish Suresh Kuhite", "Gajanan M. Dhale", "Hemant Hedau", "Rahul Ashok Ninawe", "Rahul Daulat Kuhade", "Roshan Dilip Bhagat", "Sachin Chaudhari", "Sachin Rakhunde", "Sagar Keshav Farkade", "Sahil Prashant Timande", "Sankalesh Raut", "Shailesh Sukhdev Chandekar", "Swastik Vijaybhushan Gajghate", "Umakumar Haridas Ambade", "Vaibhav Ravi Pathak"], "Nanded": ["Bhaskar Digamber Awale", "Gajanan A. Kulkarni", "Gorakhnath Babu Panchal", "Harish Desai", "Prasad Subhash Pawde", "Rajkumar Maroti Karhale", "Shrikant Krishanrao Chavan"], "Nashik": ["Dipak Rajendra Musale", "Juned Gulab Maniyar", "Laxman Munjaji Gutthe", "Vikas Ashok Lashkare"], "Nasik": ["Adinath Bansi Ghorpade", "Jitendra Anant Borate", "Mrs. Nayana V. Joshi", "Tushar Ashok Mistari", "Vijay Marathe"], "Navi Mumbai": ["Aditya Suryakant Vende", "Ashish Shivaji Jadhav", "Kamlesh Vasant Kadam", "Neeraj Mishra", "Pradeep Dnyandeo Pawar", "Sudesh Dadasaheb Devare"], "Nellore": ["D.B. Krishna", "Parvathaneni Balakrishna", "Shaik Mahaboob Basha", "Syed Gayazuddin", "Turaka Srinand"], "New Mumbai": ["Mrs.Susheela Vijay Pandit"], "Nizamabad": ["Bejugam Laxman", "Gorre Neelesh", "K.Prashantth", "S Santhosh Kumar", "Sagar Gangula"], "Noida": ["Anurag Kumar Singh", "Nitesh Kumar", "Rajiv Lochan Shukla"], "North  Delhi": ["Santosh", "Sidharth Sharma"], "North Chennai": ["M. Mahendran"], "North Delhi": ["Md.Naushad Alam"], "North Lakhimpur": ["Dulal Boruah"], "Odisha": ["Debendra Behera"], "PCMC Pune": ["Kishor Namadev Arjune", "Om Ashok Damodare"], "Palakkad": ["Anish M A", "Binoj K B", "Nitheesh P", "Pradeesh.K", "Vipin K.H."], "Panvel": ["Sunil Shivaji Ingole", "Suryakant Pandurang Mhatre"], "Parbhani": ["Eknath Madan Palve", "Satish Dattatray Joshi"], "Patiala": ["Dev Sharma", "Karan"], "Patna": ["Abhishek Kumar Singh", "Akhileshwar Kumar", "Amrit Kumar", "Anand Kumar", "Ankit Kumar", "Gaurav Anand", "Kamlesh Kumar", "Mukesh Kumar Sinha", "Pankaj Kumar", "Prashant Kumar", "Premjeet Kumar", "Ranjan Kumar", "Ravish Iftekhar", "Roofi Shadab Ayubi", "Shadab Wasim", "ShubhamKumar", "Tarak Roy", "Vimlesh Kumar", "Yajnesh Kumar"], "Perinthalmanna": ["Savin.V"], "Phalodi": ["Manish Ojha"], "Pondicherry": ["Hyderali Noordeen"], "Pondichery": ["K Thamizharasan", "M. Ashok", "Muraleedharan.M", "Venugopal Ramasamy"], "Prayagraj": ["Paresh Kumar Mishra", "Pawan Kumar Singh", "Raj kumar Vishwakarma", "Sarvesh Pandey"], "Pune": ["Abhilash Dilip Kshirsagar", "Aditya Yashwant Mete", "Ajabe Vishal Lakshman", "Amar Ashok Botre", "Amol Narayan Jamale", "Avtar Govindrao Shinde", "Balu Manikrao Kahdake", "Dattatray Shankar Borude", "Gajanan Ramesh Sonalkar", "Govind Pandurang Hapsewad", "Harshal Ishwar Bhadane", "Hrishikesh Siddharth Lokhande", "Kashinath Goroba Ghadage", "Kuldeep Datta Makne", "Laxman Arjun Sakhare", "Mahesh Konde", "Manoj Govindrao Patil", "Onkar Tanaji Talekar", "Prakash Gajanan Junare", "Prasad Shivaji Tekawade", "Prashant Pandurang Patil", "Praveen Sanjay Ghogre", "Pravin Mohanrao Shinde", "Rahul Banaji Rakh", "Rahul Bibhishan Shinde", "Rahul Ramakant Rajapure", "Ram Ashok Torambe", "Ramesh Vilas Tarale", "Ranjit Bapu Ghadge", "Ravi Dnyanoba Jagtap", "Rohit Prakash Chavan", "Rushikesh Dashrath Kale", "Sagar Bhanudas Bagal", "Samudra Vaibhav Ashok", "Shaila Prajot Bhasme", "Sharad Mahadev Mete", "Shubham Ashok Wagh", "Sudam Shankar Harbak", "Suraj Chandrakant Gholave", "Surwase Avinash Vikas", "Vaibhav Ashok Jadhav", "Vijay Kailas Girme", "Vikas Nair", "Vilas Baburao Mashale", "Vinodkumar Sanjay Shinde", "Vishnudas Damodar Kapase", "Vivek Maruti Kate", "Vyanktesh Pandurang Aigal", "Yogesh Chavan"], "Pune ,Solapur": ["Yogesh Chavan"], "Purnia": ["Pankaj Kumar"], "Purulia": ["Arindam Roy"], "Raigad": ["Nisarg Ravindra Nimbalkar"], "Raipur": ["Bhupendra Kumar", "Chandraprakash", "Mohan Kumar Sahu", "Nekram Sahu", "Toran Lal Manikpuri", "Vaccant", "Yuwraj Pardhi"], "Rajahmundry": ["Davuluri Sekhar", "Nemala Durgaprakash", "Sayyed Rafi", "Shaik Meera Vali"], "Rajkot": ["Chetan B.Ghelani", "Kanaiya Jaydev Shaileshbhai", "Mathakiya Aadilhusen Mahebubbhai", "Mohit Savajibhai Ajani", "Sakariya Pratik Parsotambhai", "Vaishnav Jigneshkumar Harsukhbhai", "Yash Jashvantbhai Fichadiya"], "Ranchi": ["Bikash Kumar Sundi", "Dhananjay Kumar Lal", "Dilip Kumar Singh", "Indra Nath Sarkar", "Kaushik Raj", "Mohit Pandey", "Raju Prasad", "Rohit Srivastava", "Sowmith Sarkar", "Sunimesh Choudhary", "Uday Shanker Deo"], "Ratlam": ["Virendra Singh Solanki"], "Rewa": ["Arvind Tiwari", "Deepu Singh", "Kartikeya Mishra"], "Rohtak": ["Rajkumar", "Surender"], "Rourkela": ["Santosh Kumar Sethi", "Shiba Sethi"], "S-Delhi": ["Anjali Mathur", "Vikas Vishwakarma"], "S.Kolkata": ["Nabanita Saha", "Sarju Kazi", "Suvojit Bakshi"], "S.Mumbai": ["Akash Vishvnath Shinde", "Amol Janardan Haryan", "Nitin Gupta", "Pradeep Sharma", "Pramod Tiwari", "Yogesh Bajarang Jamdar"], "Sagar": ["Mahesh Sharma"], "Saharsa": ["Vijay Kumar Gunjan"], "Salem": ["K S Ayeesrinivasan", "Kumar Elumalai", "Manikandan Venkatesan"], "Sambalpur": ["Gouranga Pradhan", "Jyoti Ranjan Tripathy", "Mrutyunjay Mishra", "Smruti Ranjan Sahu", "Sushanta Kumar Dash"], "Sangamner": ["Kiran Namdev Kumkar", "Rahul Namdeo Kale", "Sanjay G. Shinde", "Sufiyan Aslamkhan Pathan", "Vaibhav Balasaheb Lasure"], "Sangli": ["Abhijeet Anil Mule", "Amit A. Karanjkar", "Amit Nagnath Rajmane", "Avinash Pandurang Shelar", "Chaitrali Babasaheb Kadam", "Nitin Kulkarni", "Pandurang Shivaji Banne"], "Satna": ["Shivam Mishra", "Shubhanshu Pathak"], "Secunderabad": ["Guba Murali"], "Sharsha": ["Vikash Singh"], "Shimoga": ["Vinay K M"], "Shrirampur": ["Umesh K. Shinde"], "Sikar": ["Bhawani Shankar Sharma", "Brijesh Kumar Kumawat"], "Silchar": ["Anupam Dey", "Monoj Paul Choudhury", "Pritam Paul", "Prithiraj Biswas", "Sandip Kumar Deb", "Sandipan Dutta", "Suraj Chanda"], "Siliguri": ["Bibhas Ghosh", "Biswajit Tarafder", "Ganesh Sarkar", "Prasenjit Sribastab", "Ramendra Chanda", "Robin"], "Sindhudurg": ["Rupesh Dinkar Chaudhari"], "Sion": ["Suraj Shriram Gupta"], "Solapur": ["Arvind T. Raut", "D.H. Puranik", "Ganesh Ukrande", "Lohar Vinod Nagnath", "Mayur Pardeshi", "Nalpelli Amar Sidram", "Parmeshwar Lohatkar", "Sagar Thombare", "Sumit Motagi", "Umesh Uddhav Sawant", "Yogesh Shriniwas Peral"], "South Chennai": ["Ranjith", "Vignesh Ramakrishnan"], "South Delhi": ["Shubham Kumar"], "South Kolkata": ["Amit Das", "Pallab Chaudhury", "Somnath Manna"], "South Mumbai": ["Anurag Yadav", "Mohd Tauqeer Shaikh", "Nityanand C. Dalvi", "Rajesh Tiwari", "Vinod Kumar Mishra"], "Srikakulam": ["Kinjarapu Venkata Ramana"], "Srinagar": ["Arsalan Khan", "Azhar Ahmad Beigh", "Junaid Nazir", "Mateen Majid Reshi", "Moosin Nazir Malik", "Showkat Ahmad Bagow", "Suhail Maqbool Khan"], "Surat": ["Akash Anil Chaudhari", "Dheerendra Jagbhan Singh", "Gulshan Chaudhary", "Jay Vinubhai Khokhani", "Katariya Manish Dhirubhai", "Manoj Rajaram Chavhan", "Pamula Shoban Babu", "Saiyed Aasif Saiyed Ishaque", "Saurabh M. Shah", "Vishal Amol Patil"], "Tamluk": ["Goutam Gantait", "Raja Giri Das", "Tapan Jana"], "Tanjavur": ["C.Palanivel"], "Thane": ["Gajanan Subhash Bhopat", "Pramod Vitthal Jangam", "Sachin Asaram Pagare", "Shivam Akhileshkumar Dubey", "Surajkumar Mahesh Gupta", "Sushil Yashvant Sawant", "Vikesh Kumar Upadhyay", "Vikrant Sunil Singh", "Vivek Subhash Pandit"], "Thissur": ["Athulkrishna T S"], "Thrissur": ["Anoop Krishna P K"], "Tirunelveli": ["Gurusamy.S", "Mariappan M", "Marikannan A", "Muppudathi", "Muthuram S", "Paramasivan Saravanan G"], "Tirupati": ["Kadapa Bhaskar", "Nanikalva Midhun", "Vutukuri Sreenivasulu"], "Trichi": ["Vijayaragulan Gowthaman"], "Trichur": ["Ajith Kalariparambil", "Sudheesh P S", "Suneesh Preman Chakkandan", "Syamprasad Joshy"], "Trichy": ["Kenneth Lewin Jesuraj", "Nandha Bharathi Kalaivendhan", "R. Krishnaswamy", "Saravanakumar"], "Trivandrum": ["Abhilash S", "Ajith Kumar V", "Aneesh J", "Deepak A. S.", "Renjith Retnakaran", "Sarath Lal V", "Siva Prasad R L", "Sunu N.G."], "Tumkur": ["Chandrashekar M", "K Yogeesha", "Manju", "Manjunath N. P", "Srinivasa T R"], "Udaipur": ["Manvendra Singh", "Shailendra Kumar Pandey", "Uttam Upadhayay", "Vishal R. Vaishnav"], "Ujjain": ["Anand Rai", "Dilip Solanki", "Rohit Prajapat", "Sanjay"], "Vadapalani": ["Siddharth"], "Vadodara": ["Mohammad Uzair Yakubwala", "Parmar Kiranbhai Nageenbhai", "Patel Deepkumar Pinakinbhai"], "Vadodra": ["Aslam Vahidbhai Sheikh"], "Varanasi": ["Ashish Mahendra Gupta", "Balkrishna Dwivedi", "Brijesh Dubey", "Digpal Singh", "Naveen Kumar Trivedi", "Pradeep Kumar Dwivedi", "Raghukul Mani Tiwari", "Shiv Prakash Tiwari", "Suryakant Mishra", "Vinay Kumar Upadhyay", "Virendra Tripathi"], "Vasai": ["Nitish Baban Goriwale", "Prathmesh P. Dhavade"], "Vashi": ["Karan Subhash Khandagle", "Nitin Lahu Mhatre", "Pritam Prakash Gaikwad"], "Vellore": ["Narendra Panchangam", "V.Ganesh"], "Vijayawada": ["Chemitiganti Gurudathu", "Chodisetti Krishna Murthy", "I. Srinivas", "Mohammad Ubedur Rahman", "Mohammad Yasin", "Shaik Basha", "Sunkesula Koteswara Rao"], "Vijaywada": ["Baji Ratna Kumar C. H.", "Chennupati Mani Kanta", "Mohammed Asharaf", "Munjuluru Sai Teja", "Shaik Sameer", "Sriranga Nilayam Sydha Babu"], "Visakhapatnam": ["Ayub Khan Mohammed"], "Vishakaptnam": ["Kshatrya Venkat Narayana Singh"], "Vizag": ["Vanapalli Sanyasirao"], "Vizaq": ["Dummu Kanakeswar Rao", "Etham Setti Gangaraju", "Govinda Chelibani", "K. Koteswar Rao", "Madeena Saheb Shaik", "Peketi Durga Venkata Kishore"], "W-Delhi": ["Dharmveer Singh", "Pradeep Singh Bisht"], "W.Delhi": ["Arjun Yadav", "Rattan Kumar"], "W.Mumbai": ["Abhishek Udaynarayan Shukla", "Amol Bhimrao Shinde", "Ankit Shukla", "Atul Bharatbhushan Kewat", "Chisti Bilal Shah", "Khan Nisar Majid", "Kishor Dhondiba Kadam", "Mahendra Pratap Singh", "Pavan Kumar Yadav", "Pravin Kumar Mahendra", "Ramesh Kumar", "Ramesh Tirthraj Tripathi", "Subas Chandra Pattnaik", "Sumit Tiwari", "Suraj Vishwakarma", "Sushil Bakelal Yadav", "Yogesh Harishchandra Vaidya"], "Warangal": ["Gaddam Nagendra", "Kola Kiran", "Prasad P.", "Raju Katla", "Uppula Pavan Kalyan"], "West Delhi": ["Rihan Khan"], "Yeola": ["Akshay Rajendra Sonawane"]}
+_ALL_DIR_NAMES = ["A .Annanithi", "A V Lohith", "A. Imran", "A. Paul Raj", "Aakarapu Rajender Reddy", "Aashish Surayaprakash Shukla", "Abdul Azeez S", "Abdul Hassan Islam", "Abdul Rahman A", "Abhay Pratap Singh", "Abhay Sharma", "Abhijeet Anil Mule", "Abhijit Balasaheb Devre", "Abhijith A", "Abhilash Dilip Kshirsagar", "Abhilash S", "Abhinav Mandalgi", "Abhishek Dhar Barman", "Abhishek Kumar Singh", "Abhishek Nandi Mazumdar", "Abhishek Shukla", "Abhishek Udaynarayan Shukla", "Abhishek Walia", "Abinash Kumar Jha", "Abinash Sahoo", "Achinta Chatterjee", "Achinto kumar Mandal", "Adarsh Tiwari", "Adil Ayub Khan", "Adinath Bansi Ghorpade", "Aditya Ravindra Mendhe", "Aditya Suryakant Vende", "Aditya Yashwant Mete", "Ajabe Vishal Lakshman", "Ajay", "Ajay Bundela", "Ajay Kumar Mishra", "Ajay Kumar Nagar", "Ajay Panditrao Kadam", "Ajeesh M", "Ajin E", "Ajinkya Arun Dandwate", "Ajit Kumar Das", "Ajit Kumar Pathak", "Ajitesh Mondal", "Ajith Kalariparambil", "Ajith Kumar V", "Ajith P Ashok", "Akarsh Yadav", "Akash", "Akash Anil Chaudhari", "Akash Shil", "Akash Tukaram More", "Akash Vishvnath Shinde", "Akashkumar A", "Akhil V K", "Akhileshwar Kumar", "Akshay Bhalla", "Akshay Bhaskarrao Rajgure", "Akshay Pachpor", "Akshay Rajendra Sonawane", "Akshay Vasudev Sawase", "Akshit Sharma", "Alok Ranjan Singh", "Amal Thakuria", "Amandeep Singh", "Amar Ashok Botre", "Amarjeet Gupta", "Amit A. Karanjkar", "Amit Agarwal", "Amit Bharatkumar Bhatiya", "Amit Chakraborty", "Amit Das", "Amit Dutta", "Amit Katta", "Amit Kumar", "Amit Kumar Shukla", "Amit Kumar Tiwari", "Amit Maji", "Amit Nagnath Rajmane", "Amit Palit", "Amit Singh Verma", "Amol Appasaheb Kawle", "Amol Bhimrao Shinde", "Amol Janardan Haryan", "Amol Narayan Jamale", "Amrit Kumar", "Amrit Nayak", "Anand Devdas Meshram", "Anand Kumar", "Anand Mohan Gupta", "Anand Patel", "Anand Rai", "Anandhan D", "Aneesh J", "Aneesh Kumar", "Angad Vamanrao Nalawade", "Angikar Adiel Basumatari", "Aniket Edlabadkar", "Anil Shrikant Naik", "Anil Verma", "Anish M A", "Anjali Mathur", "Ankit", "Ankit Kumar", "Ankit Sharma", "Ankit Shukla", "Ankur Giri", "Annadi M. Reddy", "Anoop Krishna P K", "Ansari I", "Anshul Chauhan", "Anuj Gupta", "Anuj Kumar Pandey", "Anuja Kumar Nath", "Anumon V P", "Anup Kumar Singh", "Anupam Dey", "Anupam Ghosh", "Anurag Kumar Pandey", "Anurag Kumar Singh", "Anurag Nagendra Pal", "Anurag Sharma", "Anurag Yadav", "Apur Kumar Das", "Apurba Kumar Bora", "Archit Garg", "Arghya Ranjan Sengupta", "Arif Hussain Shah", "Arijit Das", "Arijul Rahaman", "Arindam Roy", "Arjun S", "Arjun Yadav", "Arpan Maity", "Arroju Kiran", "Arsalan Khan", "Arshad Khan Lodhi", "Arun Kumar A P", "Arun Kumar G", "Arun Singh", "Aruna B", "Arunkumar Satiram Prajapati", "Arup Pramanick", "Arvind Firtu Maurya", "Arvind Prajapati", "Arvind Sharma", "Arvind T. Raut", "Arvind Tiwari", "Ashim Dutta", "Ashish", "Ashish Dhiman", "Ashish Kumar Jaiswal", "Ashish Mahendra Gupta", "Ashish Sharma", "Ashish Shivaji Jadhav", "Ashish Suresh Kuhite", "Ashitosh Anandrav Desai", "Ashok Kumar K.", "Ashraf Ali", "Ashwin Jaiprakash Rai", "Asish Rudra", "Aslam Vahidbhai Sheikh", "Asutosh Swain", "Aswanth T P", "Athulkrishna T S", "Atul Bharatbhushan Kewat", "Ausan Singh", "Avijit Das", "Avijit Saha", "Avinash Pandurang Shelar", "Avinash Shah", "Avinash Sharma", "Avinish Kumar", "Avtar Govindrao Shinde", "Awakash Laljee Singh", "Ayan Biswas", "Ayub Khan Mohammed", "Ayubulla Rahman Shariff", "Azhar Ahmad Beigh", "B. Sudhakar", "B.Saravanan", "Babu Kalyan Yadav", "Baji Ratna Kumar C. H.", "Balaji S", "Balaraju Raja Sekhar Raju", "Balkrishna Dwivedi", "Balu Manikrao Kahdake", "Bappadittya Biswas", "Basanta Kumar Rana", "Basit Yaseen Mir", "Battala Yaswanth", "Beerappa", "Bejugam Laxman", "Benoy P", "Bhabani Shankar Behera", "Bhagwati Prasad Purohit", "Bhagya Bhusan Mahapatra", "Bhandi Pradip Kumar", "Bharat Vitthal Ghorpade", "Bharti", "Bhaskar Digamber Awale", "Bhaskar Dinesh Singh", "Bhavin Kumar Labana", "Bhavishya Kaushik", "Bhawani Shankar Sharma", "Bhoopal Reddy C K", "Bhrigu Kumar Kalita", "Bhupendra Kumar", "Bibhas Ghosh", "Bidhin P C", "Biduduri Bala Krishna Reddy", "Bikash Kumar Sundi", "Bikash Mishra", "Bikash Paul", "Bilal E A", "Binay Shankar Ray", "Binaya Kumar Das", "Binoj K B", "Biplab Mandal", "Biranchi Narayan Satapathy", "Bishal Sen", "Bishwajit Adhikari", "Biswajit Mondal", "Biswajit Samal", "Biswajit Tarafder", "Biswarup Bardhan", "Bittu Kumar", "Bogoju Saikumar", "Boobala Krishnan D", "Boyini Karthik Kumar", "Brajesh Kumar Rajan", "Brajmohan", "Brijesh Dubey", "Brijesh Kumar Kumawat", "Brijesh Kumar Yadav", "Brundha R.", "C.Palanivel", "C.Sathyan", "Chaitrali Babasaheb Kadam", "Chandra Prakash Suryavanshi", "Chandrakant Balbir Chhetri", "Chandrakanta Behera", "Chandraprakash", "Chandrashekar M", "Chaudhari Shivam Bharatbhai", "Chavitla Nagaraju", "Chemitiganti Gurudathu", "Chennupati Mani Kanta", "Chetan B.Ghelani", "Chetan Bhaskar Papalkar", "Chetan Dilip Wasekar", "Chetan Kailas Ghalme", "Chetan Mukund Ambade", "Chintan Bhavin Barot", "Chisti Bilal Shah", "Chodisetti Krishna Murthy", "D.B. Krishna", "D.H. Puranik", "Danish Nisar Malik", "Dasappa Gari Beligerappa", "Dattatray Shankar Borude", "Davuluri Sekhar", "Dayal Krishna Bhuyan", "Dayanand Shesherao Biradar", "Debendra Behera", "Debojyoti Chakraborty", "Debyendu Kanti Ghosh", "Deepak A. S.", "Deepak Kumar Biswal", "Deepak Kumar Das", "Deepak Raj K.", "Deepak Saini", "Deepak Sharma", "Deepu Singh", "Deshmukh Mohsin Ahmed Mateen Ahmed", "Dev Sharma", "Devaraj Kumar", "Devidas Shrikant Shevate", "Dhananjay Kumar Lal", "Dhanesh P M", "Dharjyasheel Deka", "Dharmendra Barik", "Dharmendra Basant Singh", "Dharmesh Sharma", "Dharmveer Singh", "Dhasharath R", "Dheerendra Jagbhan Singh", "Dibyendu Das", "Digpal Singh", "Dilbar Ahmed", "Dilip Kumar Singh", "Dilip Solanki", "Dilshad", "Dinesh G", "Dinesh Kumar", "Dinesh Verma", "Dino Daison", "Dinoop D.R.", "Dipak Rajendra Musale", "Dipankar Das", "Dipjyoti Sarma", "Dominic A.", "Dulal Boruah", "Dummu Kanakeswar Rao", "Dundappa R.Kadechur", "Durbasha Pattnaik", "Durgesh Babu", "Durgesh Kumar", "E Manoj", "Edagottu Sreenivasulu", "Eknath Madan Palve", "Erukulasaikrishna", "Etham Setti Gangaraju", "Faizal. A", "Febin. C", "Firoz Khan", "G.Raja", "Gaddam Nagendra", "Gajanan A. Kulkarni", "Gajanan M. Dhale", "Gajanan Ramesh Sonalkar", "Gajanan Subhash Bhopat", "Ganesh Kumar Thakur", "Ganesh Sarkar", "Ganesh Shekuba Ghule", "Ganesh Ukrande", "Gaurav Anand", "Gaurav Kumar", "Gaurav Srivastava", "Gaurav Tyagi", "Gaurav Yadav", "Gautam Angad Sahani", "Gopalakrishnan K", "Gorakhnath Babu Panchal", "Gorre Neelesh", "Gouranga Pradhan", "Gourav Lalit", "Goutam Gantait", "Govind Pandurang Hapsewad", "Govinda", "Govinda Chelibani", "Govindaraju", "Govindo Ghosh", "Guba Murali", "Gulshan Chaudhary", "Gunja Kumari", "Gurubheem Shorapurkar", "Gururaj L Kulkarni", "Gururaj Ningappa Kabnuri", "Gurusamy.S", "Guttula Chakravarthi", "Gyanendra Sevak Sharma", "Habibur Rahman N", "Hamsaraj S", "Hanuman Dashrath Bahir", "Harendra Shivchandra Yadav", "Haribabu Sahu", "Hariom", "Harish Desai", "Harish Kasarla", "Harish Kumar Jha", "Harminder Singh Bedi", "Harshal Ishwar Bhadane", "Hemant Hedau", "Hemant Kumar Daksh", "Hemant Vaidya", "Hemanta Kumar Swain", "Hemender Kumar", "Himanshu Dubey", "Himanshu Gupta", "Himanshu Vasudevbhai Patel", "Hrishikesh Siddharth Lokhande", "Hrishimukesh Napit", "Hyderali Noordeen", "I. Srinivas", "Iliyas Mohid Ahmed", "Indra Nath Sarkar", "Indrajeet Kumar", "Indresh Kumar Tiwari", "Irfan", "Irshad Ali", "J Dhayalan", "J N Abinash", "Jadukula Tilaka Rath", "Jagadisha G", "Jaikannan S Pillai", "Jain Sulabhkumar Satishchandra", "Jaspreet Kaur", "Jatinder Pal Singh", "Javed Khan", "Javedhusain Dudhwala", "Jay Vinubhai Khokhani", "Jayaseelan Santhiagu Koundar", "Jayswal Sujitkumar Mishrilal", "Jeetmal Khatik", "Jeherul Haque", "Jibinlal P", "Jijil Pradeep", "Jitendra Anant Borate", "Jitendra Kumar", "Jitendra Pravin Borse", "Jitendra Soni", "Jobish Joshi N.", "Jonnagiri Janakirami Reddy", "Junaid Nazir", "Juned Gulab Maniyar", "Jyoti Ranjan Tripathy", "K S Ayeesrinivasan", "K Thamizharasan", "K Yogeesha", "K. Koteswar Rao", "K.Prashantth", "Kadapa Bhaskar", "Kafeel UI Rehman", "Kalaivanan B.", "Kalyan Sundar Nath", "Kalyan Tamuly", "Kamlesh Kumar", "Kamlesh Vasant Kadam", "Kanaiya Jaydev Shaileshbhai", "Kapil Chhabra", "Kapil Choudhary", "Kapil Mokhere", "Kapil Sharma", "Karan", "Karan Bangadiya", "Karan Subhash Khandagle", "Karthickraja", "Karthik", "Kartikeya Mishra", "Kashinath Goroba Ghadage", "Katariya Manish Dhirubhai", "Kaushik Dutta", "Kaushik Ghosh", "Kaushik Raj", "Kayitha Ashok Kumar", "Kenneth Lewin Jesuraj", "Keyur Ashokkumar Upadhyay", "Khan Nisar Majid", "Kinjarapu Venkata Ramana", "Kiran Ingalaki", "Kiran Namdev Kumkar", "Kirana Kumara K L", "Kishor Dhondiba Kadam", "Kishor Namadev Arjune", "Kishorkumar", "Kola Kiran", "Komal Patel", "Kranti Kumar Bhoi", "Kripashanker Tiwari", "Krishna A Patil", "Krishna J", "Krishna Prem Singh", "Krishnamoorthi S", "Kshatrya Venkat Narayana Singh", "Kuldeep Datta Makne", "Kuldeep Dixit", "Kuldeep Katara", "Kuldeep Kumar Nagar", "Kuldeep Sharma", "Kuldip Rajaram Takale", "Kumar Elumalai", "Kunal Joshi", "Kurnam Baswaraj", "Lakshmeesha A Bangera", "Laxman Arjun Sakhare", "Laxman Munjaji Gutthe", "Lijoy C X", "Lohar Vinod Nagnath", "Luddi Thongam", "M Kather Meeran", "M Mahendra Gowd", "M Mohammed Yusuf", "M Siraj Deen", "M. Ashok", "M. Chandra Mohan Reddy", "M. D. Manjunath", "M. Mahendran", "M. Santosh Kumar", "M.A. Wahab", "M.A.Mujeeb", "M.S. Jayaram", "Madeena Saheb Shaik", "Mahalingappa Giri Nagarjuna", "Mahendra Pratap Singh", "Mahesh Chandra Sharma", "Mahesh Konde", "Mahesh Kumar V", "Mahesh Madhukar Chitruk", "Mahesh Sharma", "Mahesh V.V.", "Mahtab Alam", "Mallikarjun", "Mamunuri Ramana Chary", "Man Singh", "Mandeep Singh", "Manickaraj R", "Manikandan Venkatesan", "Manish Bhartsinh Bhati", "Manish Dubey", "Manish Kumar Shukla", "Manish Madhukar Shirodkar", "Manish Ojha", "Manish Rathi", "Manish Singh", "Manishkumar Kanchanlal Parmar", "Manju", "Manju Gaddad", "Manjunath", "Manjunath B A", "Manjunath N. P", "Manna Chowdhury", "Manoj Govindrao Patil", "Manoj Kumar", "Manoj Kumar Joshi", "Manoj Kumar Pasayat", "Manoj Raghunath Mahajan", "Manoj Rajaram Chavhan", "Manoranjan Nayak", "Manpreet Singh", "Manvendra Singh", "Mariappan M", "Marikannan A", "Marimuthu A", "Mariraja Ramu", "Mateen Majid Reshi", "Mathakiya Aadilhusen Mahebubbhai", "Mayur Pardeshi", "Md Mustak Munna", "Md Shahid", "Md.Naushad Alam", "Md.Tausif Khan", "Megh Raj Yadav", "Mogili Latheesh", "Mohamed Afsal", "Mohamed Rajeep Rabeek", "Mohammad Abu Zaid", "Mohammad Muzzamil Attar", "Mohammad Saad Bhat", "Mohammad Ubedur Rahman", "Mohammad Uzair Yakubwala", "Mohammad Yasin", "Mohammed Aamir Ansari", "Mohammed Asharaf", "Mohammed Jaffer M", "Mohammed Nikash S", "Mohammed Shahid Ali", "Mohammed Shareef", "Mohan Kumar Sahu", "Mohanan V.N.", "Mohd Aslam", "Mohd Ayan", "Mohd Belal", "Mohd Faheem Uddin", "Mohd Mustkeem", "Mohd Nihal", "Mohd Rafi S.", "Mohd Tauqeer Shaikh", "Mohd. Ameer P P", "Mohit Kumar Yadav", "Mohit Pandey", "Mohit Rohila", "Mohit Savajibhai Ajani", "Mohit Sharma", "Monoj Paul Choudhury", "Moosin Nazir Malik", "Mora Prasad", "Mrs. Nayana V. Joshi", "Mrs.Madhavi Govind Kegade", "Mrs.Rubina Ismail Patel", "Mrs.Susheela Vijay Pandit", "Mrutyunjay Mishra", "Ms.Oshin Sharma", "Mudasir Majeed Dar", "Mujeeb Pathan", "Mukesh", "Mukesh Kumar Sinha", "Mukesh Madhukar Satav", "Mukkamla Mallesh", "Mukul Kumar", "Munjuluru Sai Teja", "Muppudathi", "Muraleedharan.M", "Mushtaq Ahmad Bhat", "MustajibuddinWaheeduddin Deshmukh", "Muthuram S", "Muyeen Nawaz", "N Sathish Kumar", "Nabanita Saha", "Nagaraju Kotte", "Nagesh R D", "Nagishetti Srikanth", "Naimish Kumar Awasthi", "Nalpelli Amar Sidram", "Naman Tiwari", "Namdev Shankar Mohite", "Nandha Bharathi Kalaivendhan", "Nanikalva Midhun", "Narayan Somnath Khade", "Narendra Panchangam", "Narendraprasad Devidutt Kaluni", "Naresh Bhima", "Nasir Khan Abbas Khan Pathan", "Naveen Kumar B M", "Naveen Kumar Trivedi", "Naveen Pal", "Naveena Kumara G", "Nayan Kumar Tiwary", "Nayan Ravindra Shinde", "Nazir Ahmad Lone", "Neelaksh Singh", "Neeraj Kumar", "Neeraj Mishra", "Neetesh Awasthi", "Nekram Sahu", "Nemala Durgaprakash", "Nemkumar Sahu", "Nidheesh", "Nikhil Arora", "Nikhil Sharma", "Nilanjan Basak", "Nilesh Dange", "Nilesh Mohite", "Niraj Kumar Singh", "Niranjan Jena", "Niranjan Kakodkar", "Niranjan Kalita", "Niranjan Yadav R", "Niranjangiri Dhirajgiri Gauswami", "Nisarg Ravindra Nimbalkar", "Nitesh Kumar", "Nitheesh P", "Nithin Das K V", "Nitin Gupta", "Nitin Kishor Meshram", "Nitin Kulkarni", "Nitin Kush", "Nitin Lahu Mhatre", "Nitin Vijay Chaudhari", "Nitin Vivekanand Devadas", "Nitish Baban Goriwale", "Nityanand C. Dalvi", "Noorul Aman J", "Nur Alom Sheikh", "Om Ashok Damodare", "Om Prakash Saini", "Omprakash", "Onkar Singh", "Onkar Tanaji Talekar", "Pal Abhishek Jayprakash", "Pallab Chaudhury", "Pallab Gupta", "Pamula Shoban Babu", "Panasam Naveen Kumar", "Panchbhai Niyaj Ahemad Abdul Shukur", "Pandit Gautam Ashvinkumar", "Pandurang Shivaji Banne", "Pankaj Goswami", "Pankaj Goyal", "Pankaj Kumar", "Pankaj Moharana", "Pappu Sahu", "Parag P. Kale", "Paramasivan Saravanan G", "Paramesha K", "Paresh Kumar Mishra", "Paritosh Dhiman", "Parmar Kiranbhai Nageenbhai", "Parmar Maheshbhai Ramjibhai", "Parmeshwar Lohatkar", "Partha Sarathi Sahoo", "Parthiban Mani", "Parvathaneni Balakrishna", "Pasumola Hari Krishna", "Patel Deepkumar Pinakinbhai", "Pathulothu Kishan", "Pavan Kumar Yadav", "Pawan Kashyap", "Pawan Kumar Singh", "Peketi Durga Venkata Kishore", "Pintu Mandal", "Prabhakar Pratap Chand", "Prabhat Vyas", "Prabir Kumar Panda", "Pradeep Dnyandeo Pawar", "Pradeep Kumar Dwivedi", "Pradeep Omkarnath Pandey", "Pradeep Sharma", "Pradeep Singh Bisht", "Pradeep Singh Chib", "Pradeep V M", "Pradeesh.K", "Pradip Kumar Ghosh", "Prajeesh Kumar. P", "Prajith P M", "Prajwal V", "Prakash Gajanan Junare", "Prakash Shrivas", "Pramod Tiwari", "Pramod Vitthal Jangam", "Pran Gopal Sarkar", "Pranav K U", "Pranjal Goswami", "Pranjit Debnath", "Pranjyoti Deka", "Prasad P.", "Prasad Prabhakar Morajkar", "Prasad Shivaji Tekawade", "Prasad Subhash Pawde", "Prasanjit Gupta", "Prasenjit Sribastab", "Prashant G Naik", "Prashant Kumar", "Prashant Pandurang Patil", "Prashanta Halder", "Prashanta Kumar Hota", "Prathamesh Chandrakant Mudugade", "Prathish Acharya", "Prathmesh P. Dhavade", "Praveen", "Praveen B Gudigeri", "Praveen Sanjay Ghogre", "Pravin Jaikrishna Mehare", "Pravin Kumar Mahendra", "Pravin Mohanrao Shinde", "Pravin P. Giri", "Pravin Pal", "Premjeet Kumar", "Pritam Paul", "Pritam Prakash Gaikwad", "Prithiraj Biswas", "Pritom Banikya", "Priyangkar Tamuly", "Priyank Ghanshyambhai Kachhia", "Pruthviraj R N", "Pujan Debnath", "Puneet Gupta", "Punit Sharma", "Pushpendra Singh", "R K Swain", "R Mahamuneeshwaran Raja", "R Mohammed Wasim", "R Purushothama", "R. Krishnaswamy", "Rabin Mondal", "Ragesh Krishnan", "Raghavendra A", "Raghukul Mani Tiwari", "Rahul", "Rahul Ashok Ninawe", "Rahul Banaji Rakh", "Rahul Bhauso Koli", "Rahul Bibhishan Shinde", "Rahul Chawla", "Rahul Daulat Kuhade", "Rahul Devajibhai Makwana", "Rahul H. Chaudhary", "Rahul Jangir", "Rahul Mohanrao Thorat", "Rahul Namdeo Kale", "Rahul P.", "Rahul Ramakant Rajapure", "Rahul Rana", "Rahul Ranjan Shome", "Rahul Rathi", "Rahul Sharma", "Rais Mansuri", "Raj kumar Vishwakarma", "Raja Giri Das", "Rajan Chaurasiya", "Rajarajeshwaran", "Rajesh Das", "Rajesh Kumar Yadav", "Rajesh S.", "Rajesh Tiwari", "Rajib Singh", "Rajiv Lochan Shukla", "Rajkumar", "Rajkumar Maroti Karhale", "Rajkumar Mishra", "Rajshekhar", "Raju Katla", "Raju Prasad", "Raju Rai", "Rakesh Saini", "Ram", "Ram Ashok Torambe", "Ramachandran K V", "Ramakant Muduli", "Ramakant Namdev", "Raman Kumar", "Raman Kumar Srivastava", "Ramendra Chanda", "Ramesh Begur Nadiger", "Ramesh Chandra Bijuli", "Ramesh Kumar", "Ramesh Tirthraj Tripathi", "Ramesh Vilas Tarale", "Ramiz Salim Shaikh", "Ramkrishna Jakoba Pednekar", "Ramprakash Badhai", "Ramprasad Sarikonda", "Ramvilash Sharma", "Ranganath Bandavaram", "Ranjan Jalandar Jadhav", "Ranjan Kumar", "Ranjeet Kumar", "Ranjit Bapu Ghadge", "Ranjith", "Ranju K.P.", "Rashmi Ranjan Nayak", "Rathod Jaydip Harshadbhai", "Rattan Kumar", "Ratul Kumar Kazi", "Raval Chetankumar", "Ravendra Singh", "Ravi", "Ravi Dnyanoba Jagtap", "Ravi Kant", "Ravi Shankar Sharma", "Ravinarayan Sahu", "Ravish Iftekhar", "Ravish Raj", "Rayanagounda S Kotur", "Reddy. Venkata Nagendra", "Reetesh Rathore", "Rejeeshkanth K.M.", "Remal Krishnan R", "Renjith Chandran", "Renjith Retnakaran", "Rihan Khan", "Riju James", "Rinku Rawal", "Ripan Kumar Nayak", "Rishab Verma", "Ritesh Haushila Dubey", "Ritesh Purushottam Adep", "Rizwan Makandar", "Robin", "Robin Banerjee", "Rohit Hanamant Telkar", "Rohit Kalia", "Rohit Kumar", "Rohit Kumar Maurya", "Rohit Pal", "Rohit Popli", "Rohit Prajapat", "Rohit Prakash Chavan", "Rohit Rana", "Rohit Sharma", "Rohit Srivastava", "Roofi Shadab Ayubi", "Roshan Dilip Bhagat", "Rudre Pratap Singh", "Rudrendu Sarkar", "Rumith K.P.", "Rupam Chatterjee", "Rupesh Dinkar Chaudhari", "Rupesh Kumar Singh", "Rushikesh Dashrath Kale", "Ruthvik M M", "Ruturaj S. Sutar", "S Matheshwaran", "S Mohamed Jammin", "S Santhosh Kumar", "S. Ashok Raju", "S. Tamizarasu", "Sachin Asaram Pagare", "Sachin Chaudhari", "Sachin Rakhunde", "Sagar Bhanudas Bagal", "Sagar Gangula", "Sagar Keshav Farkade", "Sagar Kisan Iwale", "Sagar Rajkumar Desai", "Sagar Tamrakar", "Sagar Thombare", "Sagio Simon", "Sahil Mondal", "Sahil Prashant Timande", "Sahil Saifi", "Saied Zakir", "Saif Akis", "Saikhomba Thongam", "Saikumara R O", "Sailesh Mohanty", "Saitendra Kumar Das", "Saiyed Aasif Saiyed Ishaque", "Sajith Kumar S.", "Sakariya Pratik Parsotambhai", "Salam Rohit", "Samarendra Raul", "Sambhaji Jalindar Chavan", "Sambit Chakraborty", "Sameer Dilip Deshmukh", "Samir Kumar Sardar", "Samudra Vaibhav Ashok", "Sanath Kumar S Rai", "Sandeep Gupta", "Sandeep Kumar S", "Sandip Kumar Deb", "Sandipan Basu", "Sandipan Dutta", "Sanjay", "Sanjay G. Shinde", "Sanjeev Brar", "Sanjoy Banerjee", "Sanjoy Mujumdar", "Sankalesh Raut", "Sankar Jyoti Kakoti", "Santanu Ghosh", "Santanu Khan", "Santanu Kundu", "Santosh", "Santosh Bodke", "Santosh Kumar Sethi", "Santosh Namdev Antarkar", "Santosh Ramchandrasinh Kshatriya", "Santosh Shivashimpar", "Santosh Singh", "Santu Das", "Saraiya Kapil Narottambhai", "Sarath K S", "Sarath Lal V", "Saravanakumar", "Sarju Kazi", "Sarthak Awasthi", "Sarvesh Pandey", "Sashikanta Swain", "Satheesh Sirikonda", "Sathish kumar", "Satish Dattatray Joshi", "Satnam Singh", "Satyabrata Sahoo", "Saurabh Dubey", "Saurabh Kumar Sharma", "Saurabh M. Shah", "Saurabh Saraswat", "Savin.V", "Savireddy Madhava Reddy", "Sayyed Rafi", "Shadab Wasim", "Shaik Basha", "Shaik Imran", "Shaik Mahaboob Basha", "Shaik Mastan", "Shaik Meera Vali", "Shaik Moulali", "Shaik Samarhusen Mohsin", "Shaik Sameer", "Shaila Prajot Bhasme", "Shailendra Kumar Pandey", "Shailendra Sharma", "Shailesh Sukhdev Chandekar", "Shankar S P", "Shantanu Dutta", "Sharad Mahadev Mete", "Sharad Pimpale", "Shashank Bhalchandra Thakur", "Shashikumar Ningappa Nagnur", "Shefeek K.M.", "Sheikh Sameer", "Shiba Sethi", "Shibin P V", "Shijo Francis P. J", "Shimon V T", "Shiv Prakash Tiwari", "Shivam Akhileshkumar Dubey", "Shivam Mishra", "Shivam Shrivastav", "Shivam Singh", "Shivang Sharma", "Shivendra Kumar", "Shobhit", "Shobit Garg", "Showkat Ahmad Bagow", "Shreekant M S", "Shrikant Krishanrao Chavan", "Shubham Ashok Wagh", "Shubham Bundela", "Shubham Dangi", "Shubham Jaswal", "Shubham Kumar", "Shubham Tiwari", "ShubhamKumar", "Shubhanshu Pathak", "Shyam Ji Khare", "Shyam K Mohan", "Shyam Kumar Shobhanath Yadav", "Shyam T M", "Shyam Wankhade", "Shyamlal Choudhary", "Sibnath Thakur", "Siddanna Shivanand Karajanagi", "Siddaram S H", "Siddharth", "Sidharth Mishra", "Sidharth Sharma", "Simranpal Singh Lakhanpal", "Siva Prasad R L", "Sk MehraJ Ali", "Sk. Nazeer", "Smruti Ranjan Mohapatra", "Smruti Ranjan Sahu", "Snehal Sachin Dhoke", "Sohil", "Somnath Bapuso Mane", "Somnath Manna", "Somnath Sen", "Somnath Suryakant Mane", "Sonu", "Sonu Pipaniya", "Soubhagya R.Behuria", "Soumen Bhowmick", "Soumik Kumar Sanyal", "Soumo Bhandari", "Soumya Ranjan Samantasinghar", "Sourabh Chandel", "Sourabh Patel", "Sourav Bairagi", "Souvik Biswas", "Souvik Das", "Sowmith Sarkar", "Sravan Kumar Sharma", "Sreedas Nair V A", "Sreejith Kumar. N.V.", "Srinivasa T R", "Sriranga Nilayam Sydha Babu", "Subas Chandra Pattnaik", "Subash Mishra", "Subhajit Kundu", "Subhani Sikandar Madarsha", "Subhankar Dey", "Subhasis Kumar Shaw", "Subhasis Talukder", "Subhendu Roy", "Subrat Kumar Dash", "Subrata Ghosal", "Subrata Sarkar", "Sudam Shankar Harbak", "Sudesh Dadasaheb Devare", "Sudhanshu Choudhary", "Sudhanshu Parmar", "Sudheesh P S", "Sudhir Kumar Jha", "Sudip Das", "Sufiyan Aslamkhan Pathan", "Suhail Maqbool Khan", "Sujan Kumar N A", "Sujit Kr. Singh", "Sujit Kumar Saha", "Sujit Madhukar Shetkar", "Sujoy Nandi", "Sukh Deepak Shukla", "Suman Chakraborty", "Suman Dey", "Suman Goswami", "Suman Nag", "Sumanta Das", "Sumit Kumar", "Sumit Kumar Dhore", "Sumit Mandloi", "Sumit Motagi", "Sumit Tiwari", "Suneesh Preman Chakkandan", "Suneesh. K", "Sunil Banwari Prajapati", "Sunil Kumar", "Sunil Saxena", "Sunil Shivaji Ingole", "Sunil Yadav", "Sunimesh Choudhary", "Sunkesula Koteswara Rao", "Sunu N.G.", "Supriya Saha", "Supriyo Pal", "Suprovat Das", "Suraj Chanda", "Suraj Chandrakant Gholave", "Suraj Shriram Gupta", "Suraj Vishwakarma", "Surajkumar Mahesh Gupta", "Surendar Sen", "Surender", "Suresh Kumar", "Surwase Avinash Vikas", "Surya Prakash Rai", "Suryakant Mishra", "Suryakant Pandurang Mhatre", "Suryansh Sharma", "Susanta Layek", "Sushanta Kumar Dash", "Sushil Bakelal Yadav", "Sushil Kumar", "Sushil Yashvant Sawant", "Suvadip Paul", "Suvankar Das", "Suvojit Bakshi", "Swapnil Dhanraj Pardeshi", "Swastik Vijaybhushan Gajghate", "Syamprasad Joshy", "Syed Gayazuddin", "T. Jamuna", "T. Jothilingam", "Tapan Jana", "Tapas Singh", "Tara Singh Adhikari", "Tarak Roy", "Tarun Pathak", "Thirumalesha H M", "Thirupathi Veeranjaneyulu", "Toran Lal Manikpuri", "Tridib Das", "Tulsi Ram Yadav", "Turaka Srinand", "Tushar Ashok Mistari", "Tushar Sunil Kesarkar", "Tushar Vasudeo Upakare", "Uday Shanker Deo", "Uddhav Dnyandev Mate", "Umakumar Haridas Ambade", "Umesh K. Shinde", "Umesh Uddhav Sawant", "Unni M", "Uppula Anil Kumar", "Uppula Pavan Kalyan", "Urvesh J. Thakkar", "Uttam Upadhayay", "V. Manikandan", "V. Radhakrishnan", "V. Sree Kumar", "V.Ganesh", "V.Rajashekhar", "Vacant", "Vaccant", "Vaibhav Ashok Jadhav", "Vaibhav Balasaheb Lasure", "Vaibhav Bhaskar Kolte", "Vaibhav Mishra", "Vaibhav Ravi Pathak", "Vaibhav Shankar Sanap", "Vairamuthu Annadurai", "Vaishnav Jigneshkumar Harsukhbhai", "Vakil Ahmad J Ansari", "Vanapalli Sanyasirao", "Varun G Krishna", "Varunendra Pathak", "Veeresh B Shirol", "Vemula Kranthi Kumar", "Venugopal Ramasamy", "Vibhu Shukla", "Vignesh Ramakrishnan", "Vigneshwaran Pandian S .", "Vijay", "Vijay Gundappa Kalappanavar", "Vijay Kailas Girme", "Vijay Kumar Gunjan", "Vijay Marathe", "Vijay Payappa Sangodi", "Vijay Vishwakarma", "Vijayapuram Venu", "Vijayaragulan Gowthaman", "Vijender", "Vijendra Singh Rathore", "Vijesh K", "Vikas Ashok Lashkare", "Vikas Kumar", "Vikas Mani", "Vikas Manohar Lande", "Vikas Nair", "Vikas Sharma", "Vikas Srivastava", "Vikas Vishwakarma", "Vikash Kumar Singh", "Vikash Singh", "Vikesh Kumar Upadhyay", "Vikrant Sunil Singh", "Vilas Baburao Mashale", "Vimal Kumawat", "Vimlesh Kumar", "Vinay K M", "Vinay Kumar", "Vinay Kumar Upadhyay", "Vinay Laxman Sawant", "Vinayak S. Mishra", "Vinayak Yuvraj Bogar", "Vinayaka", "Vineet Ojha", "Vinod B", "Vinod Chavan", "Vinod Kumar Mishra", "Vinod Sharma", "Vinodkumar Sanjay Shinde", "Vinoth M", "Vipin K.H.", "Vipin Kumar S", "Vipin T", "Vipul Padman", "Virendra Mani R. Tripathi", "Virendra Singh Solanki", "Virendra Tripathi", "Vishal Ajinath Pare", "Vishal Amol Patil", "Vishal Deepak Pednekar", "Vishal R. Vaishnav", "Vishal Ramrao Aglawe", "Vishnu Manoharan", "Vishnudas Damodar Kapase", "Vishvas Sharma", "Vivek Kumar M.V.", "Vivek Maruti Kate", "Vivek Shrivastav", "Vivek Subhash Pandit", "Vivekananda Moharana", "Vutukuri Sreenivasulu", "Vyanktesh Pandurang Aigal", "Vyas Jasmin Ashwinkumar", "Vyas Mayur Sudhirbhai", "Wahidur Rahman", "Yadav Sushmita Mahendra", "Yajnesh Kumar", "Yash Jashvantbhai Fichadiya", "Yashwant Bagri", "Yenikapalli Venkata Chenchu Krishna", "Yogeesh C", "Yogesh Bajarang Jamdar", "Yogesh Chavan", "Yogesh Harishchandra Vaidya", "Yogesh Khurana", "Yogesh R. Satao", "Yogesh Shriniwas Peral", "Yogesh Shrivastava", "Yuvraj Shivaji Patil", "Yuwraj Pardhi", "Zahid Ahmad Bhat", "Zaid Imran Ansari"]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA LOADING
+# ══════════════════════════════════════════════════════════════════════════════
+@st.cache_data(show_spinner="\u23f3 Loading ENTOD SPO Data\u2026", ttl=3600)
+def load_data():
+    import os
+    fname = "Sales_HQ_SPO_Mapped_AprMay2026_Fixed.xlsx"
+    if not os.path.exists(fname):
+        return None, None
+    raw = pd.read_excel(fname, sheet_name="Raw Mapped Detail", header=2, skiprows=[3])
+    raw.columns = ["State","Corrected_HQ","Orig_HQ","SPO","Division","Product","Pack",
+                   "Qty_Apr","Amt_Apr","Qty_May","Amt_May","Total_Qty","Total_Amt"]
+    raw = raw.dropna(subset=["SPO","Division"])
+    raw["SPO"] = raw["SPO"].astype(str).str.strip()
+    raw["Division"] = raw["Division"].astype(str).str.strip()
+    nc = pd.read_excel(fname, sheet_name="Non-Covering HQs", header=2, skiprows=[3])
+    nc.columns = ["Division","Orig_HQ","Qty_Apr","Amt_Apr","Qty_May","Amt_May","Total_Qty","Total_Amt"]
+    nc = nc.dropna(subset=["Division"])
+    nc["Division"] = nc["Division"].astype(str).str.strip()
+    nc = nc[nc["Division"] != "TOTAL"]
+    return raw, nc
+
+raw_full, nc_full = load_data()
+if raw_full is None:
+    st.error("\u274c Data file not found. Place **Sales_HQ_SPO_Mapped_AprMay2026_Fixed.xlsx** in the same folder.")
+    st.stop()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SIDEBAR FILTERS
+# ══════════════════════════════════════════════════════════════════════════════
+with st.sidebar:
+    st.markdown(f"""
+    <div class="sb-logo-wrap">
+      <img src="{LOGO_SRC}" alt="ENTOD Logo"/>
+      <div>
+        <div class="sb-brand-name">ENTOD SPO Insight</div>
+        <div class="sb-brand-sub">SPO-Wise Analytics</div>
+      </div>
+    </div>
+    <div style='border-bottom:1px solid #222; margin-bottom:14px;'></div>
+    """, unsafe_allow_html=True)
+    st.markdown("**Filters**")
+
+    all_divs   = sorted(raw_full["Division"].dropna().unique())
+    sel_divs   = st.multiselect("\U0001f3e2 Division", all_divs, default=[], placeholder="All divisions")
+    all_states = sorted(raw_full["State"].dropna().unique())
+    sel_states = st.multiselect("\U0001f5fa\ufe0f State", all_states, default=[], placeholder="All states")
+    all_hqs    = sorted(raw_full["Corrected_HQ"].dropna().unique())
+    sel_hqs    = st.multiselect("\U0001f4cd HQ", all_hqs, default=[], placeholder="All HQs")
+    all_spos   = sorted(raw_full["SPO"].dropna().unique())
+    sel_spos   = st.multiselect("\U0001f464 SPO / MR (Sales ID)", all_spos, default=[], placeholder="All SPOs")
+
+    # SPO Name filter — from telephone directory
+    # Build dynamic list: if HQ filter active, show only those HQ's staff; else all
+    if sel_hqs:
+        name_options = sorted(set(
+            n for hq in sel_hqs
+            for n in _HQ_SPO_DIR.get(hq, [])
+        ))
+    else:
+        name_options = _ALL_DIR_NAMES
+    sel_spo_names = st.multiselect("\U0001f9d1 SPO Name (Directory)", name_options, default=[], placeholder="All SPO Names")
+
+    st.markdown("<div style='border-bottom:1px solid #222; margin:14px 0 10px 0;'></div>", unsafe_allow_html=True)
+    st.caption(f"\U0001f4ca Total SPOs: **{raw_full['SPO'].nunique():,}**")
+    st.caption(f"\U0001f4cd Total HQs: **{raw_full['Corrected_HQ'].nunique():,}**")
+    st.caption(f"\U0001f9d1 Staff in Directory: **{len(_ALL_DIR_NAMES):,}**")
+    st.caption("\u2139\ufe0f Leave blank to include all.")
+
+# ── Apply filters
+df = raw_full.copy()
+if sel_divs:   df = df[df["Division"].isin(sel_divs)]
+if sel_states: df = df[df["State"].isin(sel_states)]
+if sel_hqs:    df = df[df["Corrected_HQ"].isin(sel_hqs)]
+if sel_spos:   df = df[df["SPO"].isin(sel_spos)]
+
+nc_df = nc_full.copy()
+if sel_divs:   nc_df = nc_df[nc_df["Division"].isin(sel_divs)]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HEADER + TICKER
+# ══════════════════════════════════════════════════════════════════════════════
+c_logo, c_title = st.columns([1, 10])
+with c_logo:
+    st.markdown(f"<img src='{LOGO_SRC}' style='width:62px;height:62px;border-radius:10px;margin-top:4px;'>", unsafe_allow_html=True)
+with c_title:
+    filter_txt = " | ".join(
+        ([f"Div: {', '.join(sel_divs)}" if sel_divs else ""] +
+         [f"State: {', '.join(sel_states)}" if sel_states else ""] +
+         [f"HQ: {', '.join(sel_hqs)}" if sel_hqs else ""] +
+         [f"SPO: {', '.join(sel_spos[:3])}{'\u2026' if len(sel_spos)>3 else ''}" if sel_spos else ""] +
+         [f"Name: {', '.join(sel_spo_names[:2])}{'\u2026' if len(sel_spo_names)>2 else ''}" if sel_spo_names else ""])
+    ).strip(" | ") or "All SPOs \u00b7 All HQs \u00b7 All Divisions"
+    st.markdown(f"""
+    <div style='padding-top:6px;'>
+      <div style='font-size:1.55rem;font-weight:800;color:#f0f0f0;letter-spacing:-0.02em;'>
+        ENTOD SPO-Wise Sales Analytics &nbsp;
+        <span style='font-size:0.85rem;font-weight:500;color:#555;'>Apr\u2013May 2026</span>
+      </div>
+      <div style='font-size:0.72rem;color:#555;margin-top:2px;'>{filter_txt}</div>
+    </div>""", unsafe_allow_html=True)
+
+# ── Aggregations
+total_rev   = df["Total_Amt"].sum()
+total_qty   = df["Total_Qty"].sum()
+n_spos      = df["SPO"].nunique()
+n_hqs       = df["Corrected_HQ"].nunique()
+n_prods     = df["Product"].nunique()
+n_states    = df["State"].nunique()
+rev_apr     = df["Amt_Apr"].sum()
+rev_may     = df["Amt_May"].sum()
+mom_pct     = round((rev_may - rev_apr) / rev_apr * 100, 1) if rev_apr else 0
+mom_cls     = "kpi-green" if mom_pct >= 0 else "kpi-red"
+
+spo_rev     = df.groupby("SPO")["Total_Amt"].sum()
+avg_spo_rev = spo_rev.mean() if len(spo_rev) else 0
+top_spo     = spo_rev.idxmax() if len(spo_rev) else "\u2014"
+top_spo_rev = spo_rev.max() if len(spo_rev) else 0
+
+hq_rev      = df.groupby("Corrected_HQ")["Total_Amt"].sum()
+top_hq      = hq_rev.idxmax() if len(hq_rev) else "\u2014"
+top_hq_rev  = hq_rev.max() if len(hq_rev) else 0
+
+ticker_items = [
+    f"\U0001f4b0 Total Revenue: {fmt_inr(total_rev)}",
+    f"\U0001f4e6 Total Qty Sold: {int(total_qty):,}",
+    f"\U0001f464 Active SPOs: {n_spos}",
+    f"\U0001f4cd HQs Covered: {n_hqs}",
+    f"\U0001f3c6 Top SPO: {top_spo[:20]}",
+    f"\U0001f3c5 Top HQ: {top_hq[:20]}",
+    f"\U0001f48a Products: {n_prods}",
+    f"\U0001f5fa\ufe0f States: {n_states}",
+]
+ticker_str = "  \u00b7  ".join(ticker_items * 3)
+st.markdown(f"<div class='ticker-outer'><div class='ticker-inner'>{ticker_str}</div></div>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# KPI CARDS
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_KPI, "Key Metrics")
+k1,k2,k3,k4,k5,k6 = st.columns(6)
+kpi(k1, ICO_REVENUE, "Total Revenue",  fmt_inr(total_rev),   "Apr + May 2026")
+kpi(k2, ICO_QTY,     "Total Qty Sold", f"{int(total_qty):,}", "All products")
+kpi(k3, ICO_SPO,     "Active SPOs",    f"{n_spos}",           "Mapped & covered")
+kpi(k4, ICO_HQ,      "HQs Covered",   f"{n_hqs}",            "Corrected HQs")
+kpi(k5, ICO_TREND,   "MoM Growth",    f"{mom_pct:+.1f}%",    f"Apr \u20b9{rev_apr/1e5:.1f}L \u2192 May \u20b9{rev_may/1e5:.1f}L", mom_cls)
+kpi(k6, ICO_DIV,     "Avg Rev / SPO", fmt_inr(avg_spo_rev),  "Per MR")
+
+st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LEADERBOARD
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_PERF, "Leaderboard \u2014 Top Performers")
+
+top5_spo = spo_rev.nlargest(5).reset_index(); top5_spo.columns = ["SPO","Revenue"]
+top5_hq  = hq_rev.nlargest(5).reset_index();  top5_hq.columns  = ["HQ","Revenue"]
+medals = ["\U0001f947","\U0001f948","\U0001f949","4\ufe0f\u20e3","5\ufe0f\u20e3"]
+
+st.markdown("<div style='font-size:0.7rem;color:#555;font-weight:600;letter-spacing:0.08em;margin-bottom:6px;'>TOP 5 SPOs (MRs)</div>", unsafe_allow_html=True)
+col_spo_cards = st.columns(5)
+for i, (_, row) in enumerate(top5_spo.iterrows()):
+    with col_spo_cards[i]:
+        st.markdown(f"""
+        <div class="trophy-card">
+          <div style="font-size:1.6rem;">{medals[i]}</div>
+          <div class="trophy-name">{row["SPO"]}</div>
+          <div class="trophy-val">{fmt_inr(row["Revenue"])}</div>
+          <div class="trophy-sub">SPO / MR</div>
+        </div>""", unsafe_allow_html=True)
+
+st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='font-size:0.7rem;color:#555;font-weight:600;letter-spacing:0.08em;margin-bottom:6px;'>TOP 5 HQs</div>", unsafe_allow_html=True)
+col_hq_cards = st.columns(5)
+for i, (_, row) in enumerate(top5_hq.iterrows()):
+    with col_hq_cards[i]:
+        st.markdown(f"""
+        <div class="trophy-card" style="border-top:3px solid #f5c518;">
+          <div style="font-size:1.6rem;">{medals[i]}</div>
+          <div class="trophy-name">{row["HQ"]}</div>
+          <div class="trophy-val" style="color:#f5c518;">{fmt_inr(row["Revenue"])}</div>
+          <div class="trophy-sub">HQ</div>
+        </div>""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SPO SUMMARY TABLE
+# ══════════════════════════════════════════════════════════════════════════════
+spo_sum = (
+    df.groupby("SPO", as_index=False)
+      .agg(
+          HQ        = ("Corrected_HQ", "first"),
+          Division  = ("Division",    lambda x: ", ".join(sorted(x.unique()))),
+          State     = ("State",        "first"),
+          Amt_Apr   = ("Amt_Apr",      "sum"),
+          Amt_May   = ("Amt_May",      "sum"),
+          Total_Qty = ("Total_Qty",    "sum"),
+          Total_Amt = ("Total_Amt",    "sum"),
+          Products  = ("Product",      "nunique"),
+      )
+      .sort_values("Total_Amt", ascending=False)
+      .reset_index(drop=True)
+)
+spo_sum["MoM_%"] = spo_sum.apply(
+    lambda r: round((r["Amt_May"] - r["Amt_Apr"]) / r["Amt_Apr"] * 100, 1)
+    if r["Amt_Apr"] > 0 else None, axis=1)
+
+# HQ summary
+hq_sum = (
+    df.groupby("Corrected_HQ", as_index=False)
+      .agg(
+          Total_Amt = ("Total_Amt", "sum"),
+          Total_Qty = ("Total_Qty", "sum"),
+          Amt_Apr   = ("Amt_Apr",   "sum"),
+          Amt_May   = ("Amt_May",   "sum"),
+          SPO_Count = ("SPO",       "nunique"),
+          Products  = ("Product",   "nunique"),
+          State     = ("State",     "first"),
+      )
+      .sort_values("Total_Amt", ascending=False)
+      .reset_index(drop=True)
+)
+hq_sum["MoM_%"] = hq_sum.apply(
+    lambda r: round((r["Amt_May"] - r["Amt_Apr"]) / r["Amt_Apr"] * 100, 1)
+    if r["Amt_Apr"] > 0 else None, axis=1)
+# Attach SPO names from telephone directory
+hq_sum["SPO_Names"] = hq_sum["Corrected_HQ"].apply(
+    lambda hq: ", ".join(_HQ_SPO_DIR.get(hq, [])) or "—")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SPO NAME-WISE SALES
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_SPO, "SPO Name-wise Sales")
+c1, c2 = st.columns(2)
+
+with c1:
+    clabel("Top 20 SPOs by Total Revenue")
+    top20 = spo_sum.head(20).sort_values("Total_Amt")
+    fig1 = go.Figure(go.Bar(
+        x=top20["Total_Amt"], y=top20["SPO"], orientation="h",
+        marker=dict(color=top20["Total_Amt"].astype(float), colorscale=REDS, showscale=False),
+        text=[fmt_inr(v) for v in top20["Total_Amt"]],
+        textposition="outside", textfont=dict(size=8, color=FONT),
+        hovertemplate="<b>%{y}</b><br>Revenue: \u20b9%{x:,.0f}<extra></extra>",
+    ))
+    fig1.update_layout(**BASE_LAYOUT, height=500,
+        xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+        yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+        margin=dict(l=8, r=70, t=16, b=8))
+    st.plotly_chart(fig1, use_container_width=True, config=CFG)
+
+with c2:
+    clabel("Revenue Share \u2014 Top 15 SPOs")
+    top15 = spo_sum.head(15).copy()
+    others_rev = spo_sum.iloc[15:]["Total_Amt"].sum() if len(spo_sum) > 15 else 0
+    if others_rev > 0:
+        top15 = pd.concat([top15, pd.DataFrame({"SPO":["Others"],"Total_Amt":[others_rev]})], ignore_index=True)
+    fig2 = go.Figure(go.Pie(
+        labels=top15["SPO"], values=top15["Total_Amt"].round(2), hole=0.52,
+        marker=dict(colors=reds_pie[:len(top15)], line=dict(color="#111", width=2)),
+        textinfo="label+percent", textfont=dict(size=8, color="#ddd"),
+        hovertemplate="<b>%{label}</b><br>\u20b9%{value:,.0f}<br>%{percent}<extra></extra>",
+        insidetextorientation="radial",
+    ))
+    fig2.add_annotation(text=f"<b>{len(spo_sum)}</b><br>SPOs", x=0.5, y=0.5, showarrow=False,
+        font=dict(size=14, color="#e0e0e0", family="Inter"))
+    fig2.update_layout(**BASE_LAYOUT, height=500, showlegend=False, margin=DEFAULT_MARGIN)
+    st.plotly_chart(fig2, use_container_width=True, config=CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SPO MoM
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_TREND, "SPO Month-on-Month Analysis")
+c3, c4 = st.columns(2)
+
+with c3:
+    clabel("Top 15 SPOs \u2014 Apr vs May Revenue")
+    t15 = spo_sum.head(15).sort_values("Total_Amt")
+    fig3 = go.Figure()
+    fig3.add_trace(go.Bar(name="Apr", x=t15["Amt_Apr"], y=t15["SPO"], orientation="h",
+        marker_color="#990000", opacity=0.85,
+        hovertemplate="<b>%{y}</b><br>Apr: \u20b9%{x:,.0f}<extra></extra>"))
+    fig3.add_trace(go.Bar(name="May", x=t15["Amt_May"], y=t15["SPO"], orientation="h",
+        marker_color=RED, opacity=0.85,
+        hovertemplate="<b>%{y}</b><br>May: \u20b9%{x:,.0f}<extra></extra>"))
+    fig3.update_layout(**BASE_LAYOUT, height=400, barmode="group",
+        xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+        yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+        legend=dict(font=dict(size=9), bgcolor="rgba(20,20,20,0.8)", bordercolor="#333", borderwidth=1),
+        margin=dict(l=8, r=8, t=16, b=8))
+    st.plotly_chart(fig3, use_container_width=True, config=CFG)
+
+with c4:
+    clabel("Top 20 SPOs \u2014 MoM Revenue Growth %")
+    mom_df = spo_sum.head(20).dropna(subset=["MoM_%"]).sort_values("MoM_%")
+    bar_cols = ["#22c55e" if v >= 0 else RED for v in mom_df["MoM_%"]]
+    fig4 = go.Figure(go.Bar(
+        x=mom_df["MoM_%"], y=mom_df["SPO"], orientation="h",
+        marker_color=bar_cols,
+        text=mom_df["MoM_%"].apply(lambda x: f"{x:+.1f}%"),
+        textposition="outside", textfont=dict(size=8, color=FONT),
+        hovertemplate="<b>%{y}</b><br>MoM: %{x:+.1f}%<extra></extra>",
+    ))
+    fig4.update_layout(**BASE_LAYOUT, height=400,
+        xaxis=dict(showgrid=True, gridcolor=GRID, zeroline=True, zerolinecolor="#333", zerolinewidth=1),
+        yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+        margin=dict(l=8, r=50, t=16, b=8))
+    st.plotly_chart(fig4, use_container_width=True, config=CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HQ-WISE SALES
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_HQ, "HQ-wise Sales Analysis")
+c5, c6 = st.columns(2)
+GREENS = [[0,"#1a3300"],[0.5,"#336600"],[1,"#66cc00"]]
+greens_pie = ["#66cc00","#44aa00","#88dd00","#228800","#aaee00","#116600","#ccff33","#004400","#eeff66","#002200","#ddff00","#336600","#bbee00","#1a4400","#99cc00","#333333"]
+
+with c5:
+    clabel("Top 25 HQs by Total Revenue")
+    top25hq = hq_sum.head(25).sort_values("Total_Amt")
+    fig5 = go.Figure(go.Bar(
+        x=top25hq["Total_Amt"], y=top25hq["Corrected_HQ"], orientation="h",
+        marker=dict(color=top25hq["Total_Amt"].astype(float), colorscale=GREENS, showscale=False),
+        text=[fmt_inr(v) for v in top25hq["Total_Amt"]],
+        textposition="outside", textfont=dict(size=8, color=FONT),
+        customdata=top25hq[["SPO_Count","State","SPO_Names"]],
+        hovertemplate="<b>%{y}</b><br>Revenue: \u20b9%{x:,.0f}<br>SPOs: %{customdata[0]}<br>State: %{customdata[1]}<br>Staff: %{customdata[2]}<extra></extra>",
+    ))
+    fig5.update_layout(**BASE_LAYOUT, height=580,
+        xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+        yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+        margin=dict(l=8, r=70, t=16, b=8))
+    st.plotly_chart(fig5, use_container_width=True, config=CFG)
+
+with c6:
+    clabel("HQ Revenue Share \u2014 Top 15 HQs")
+    top15hq = hq_sum.head(15).copy()
+    others_hq_rev = hq_sum.iloc[15:]["Total_Amt"].sum() if len(hq_sum) > 15 else 0
+    if others_hq_rev > 0:
+        top15hq = pd.concat([top15hq, pd.DataFrame({"Corrected_HQ":["Others"],"Total_Amt":[others_hq_rev]})], ignore_index=True)
+    fig6 = go.Figure(go.Pie(
+        labels=top15hq["Corrected_HQ"], values=top15hq["Total_Amt"].round(2), hole=0.52,
+        marker=dict(colors=greens_pie[:len(top15hq)], line=dict(color="#111", width=2)),
+        textinfo="label+percent", textfont=dict(size=8, color="#ddd"),
+        hovertemplate="<b>%{label}</b><br>\u20b9%{value:,.0f}<br>%{percent}<extra></extra>",
+        insidetextorientation="radial",
+    ))
+    fig6.add_annotation(text=f"<b>{len(hq_sum)}</b><br>HQs", x=0.5, y=0.5, showarrow=False,
+        font=dict(size=14, color="#e0e0e0", family="Inter"))
+    fig6.update_layout(**BASE_LAYOUT, height=580, showlegend=False, margin=DEFAULT_MARGIN)
+    st.plotly_chart(fig6, use_container_width=True, config=CFG)
+
+c7, c8 = st.columns(2)
+with c7:
+    clabel("Top 15 HQs \u2014 Apr vs May Revenue")
+    t15hq = hq_sum.head(15).sort_values("Total_Amt")
+    fig7 = go.Figure()
+    fig7.add_trace(go.Bar(name="Apr", x=t15hq["Amt_Apr"], y=t15hq["Corrected_HQ"], orientation="h",
+        marker_color="#224400", opacity=0.85,
+        hovertemplate="<b>%{y}</b><br>Apr: \u20b9%{x:,.0f}<extra></extra>"))
+    fig7.add_trace(go.Bar(name="May", x=t15hq["Amt_May"], y=t15hq["Corrected_HQ"], orientation="h",
+        marker_color="#66cc00", opacity=0.85,
+        hovertemplate="<b>%{y}</b><br>May: \u20b9%{x:,.0f}<extra></extra>"))
+    fig7.update_layout(**BASE_LAYOUT, height=380, barmode="group",
+        xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+        yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+        legend=dict(font=dict(size=9), bgcolor="rgba(20,20,20,0.8)", bordercolor="#333", borderwidth=1),
+        margin=dict(l=8, r=8, t=16, b=8))
+    st.plotly_chart(fig7, use_container_width=True, config=CFG)
+
+with c8:
+    clabel("Top 20 HQs \u2014 Number of Active SPOs")
+    spo_per_hq = (df.groupby("Corrected_HQ")["SPO"].nunique()
+                    .sort_values(ascending=False).head(20).reset_index().sort_values("SPO"))
+    fig8 = go.Figure(go.Bar(
+        x=spo_per_hq["SPO"], y=spo_per_hq["Corrected_HQ"], orientation="h",
+        marker=dict(color=spo_per_hq["SPO"].astype(float), colorscale=GREENS, showscale=False),
+        text=spo_per_hq["SPO"].apply(lambda x: f"{int(x)} SPOs"),
+        textposition="outside", textfont=dict(size=8, color=FONT),
+        hovertemplate="<b>%{y}</b><br>Active SPOs: %{x}<extra></extra>",
+    ))
+    fig8.update_layout(**BASE_LAYOUT, height=380,
+        xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=","),
+        yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+        margin=dict(l=8, r=70, t=16, b=8))
+    st.plotly_chart(fig8, use_container_width=True, config=CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SPO DRILL-DOWN
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_SPO, "SPO Individual Drill-Down")
+all_spo_list = sorted(df["SPO"].dropna().unique())
+if len(all_spo_list) == 0:
+    st.warning("No SPO data for current filters.")
+else:
+    selected_spo = st.selectbox("\U0001f50d Select an SPO / MR to explore:", all_spo_list, index=0)
+    spo_df = df[df["SPO"] == selected_spo]
+    spo_rev_val = spo_df["Total_Amt"].sum()
+    spo_qty_val = spo_df["Total_Qty"].sum()
+    spo_apr     = spo_df["Amt_Apr"].sum()
+    spo_may     = spo_df["Amt_May"].sum()
+    spo_hqs_cnt = spo_df["Corrected_HQ"].nunique()
+    spo_prods   = spo_df["Product"].nunique()
+    spo_state   = spo_df["State"].iloc[0] if len(spo_df) else "\u2014"
+    spo_mom     = round((spo_may - spo_apr) / spo_apr * 100, 1) if spo_apr else 0
+    spo_mom_cls = "kpi-green" if spo_mom >= 0 else "kpi-red"
+    spo_rank_rows = spo_sum[spo_sum["SPO"] == selected_spo]
+    spo_rank    = spo_rank_rows.index[0] + 1 if len(spo_rank_rows) else "\u2014"
+
+    dp1,dp2,dp3,dp4,dp5,dp6 = st.columns(6)
+    kpi(dp1, ICO_REVENUE, "SPO Revenue",  fmt_inr(spo_rev_val),  f"Rank #{spo_rank}")
+    kpi(dp2, ICO_QTY,     "Qty Sold",     f"{int(spo_qty_val):,}", "Total units")
+    kpi(dp3, ICO_HQ,      "HQs Covered", f"{spo_hqs_cnt}",        spo_state)
+    kpi(dp4, ICO_PRODUCT, "SKUs Sold",    f"{spo_prods}",          "Unique products")
+    kpi(dp5, ICO_TREND,   "Apr Revenue",  fmt_inr(spo_apr),        "April 2026")
+    kpi(dp6, ICO_TREND,   "May Revenue",  fmt_inr(spo_may),        f"MoM: {spo_mom:+.1f}%", spo_mom_cls)
+
+    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    dc1, dc2 = st.columns(2)
+    with dc1:
+        clabel(f"Top Products sold by {selected_spo[:30]}")
+        spo_prod = (spo_df.groupby("Product", as_index=False)["Total_Amt"].sum()
+                         .sort_values("Total_Amt", ascending=False).head(15).sort_values("Total_Amt"))
+        fig_dp1 = go.Figure(go.Bar(
+            x=spo_prod["Total_Amt"], y=spo_prod["Product"], orientation="h",
+            marker=dict(color=spo_prod["Total_Amt"].astype(float), colorscale=REDS, showscale=False),
+            text=[fmt_inr(v) for v in spo_prod["Total_Amt"]],
+            textposition="outside", textfont=dict(size=8, color=FONT),
+            hovertemplate="<b>%{y}</b><br>\u20b9%{x:,.0f}<extra></extra>",
+        ))
+        fig_dp1.update_layout(**BASE_LAYOUT, height=360,
+            xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+            yaxis=dict(showgrid=False, tickfont=dict(size=7)),
+            margin=dict(l=8, r=70, t=16, b=8))
+        st.plotly_chart(fig_dp1, use_container_width=True, config=CFG)
+    with dc2:
+        clabel(f"HQs covered by {selected_spo[:30]}")
+        spo_hq_bd = (spo_df.groupby("Corrected_HQ", as_index=False)["Total_Amt"].sum()
+                           .sort_values("Total_Amt", ascending=False).sort_values("Total_Amt"))
+        fig_dp2 = go.Figure(go.Bar(
+            x=spo_hq_bd["Total_Amt"], y=spo_hq_bd["Corrected_HQ"], orientation="h",
+            marker=dict(color=spo_hq_bd["Total_Amt"].astype(float), colorscale=GREENS, showscale=False),
+            text=[fmt_inr(v) for v in spo_hq_bd["Total_Amt"]],
+            textposition="outside", textfont=dict(size=8, color=FONT),
+            hovertemplate="<b>%{y}</b><br>\u20b9%{x:,.0f}<extra></extra>",
+        ))
+        fig_dp2.update_layout(**BASE_LAYOUT, height=360,
+            xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+            yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+            margin=dict(l=8, r=70, t=16, b=8))
+        st.plotly_chart(fig_dp2, use_container_width=True, config=CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HQ DRILL-DOWN
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_HQ, "HQ Individual Drill-Down")
+all_hq_list = sorted(df["Corrected_HQ"].dropna().unique())
+if len(all_hq_list) > 0:
+    selected_hq = st.selectbox("\U0001f50d Select an HQ to explore:", all_hq_list, index=0)
+    hq_df = df[df["Corrected_HQ"] == selected_hq]
+    hq_rev_val  = hq_df["Total_Amt"].sum()
+    hq_qty_val  = hq_df["Total_Qty"].sum()
+    hq_apr      = hq_df["Amt_Apr"].sum()
+    hq_may      = hq_df["Amt_May"].sum()
+    hq_spo_cnt  = hq_df["SPO"].nunique()
+    hq_prods    = hq_df["Product"].nunique()
+    hq_state    = hq_df["State"].iloc[0] if len(hq_df) else "\u2014"
+    hq_mom      = round((hq_may - hq_apr) / hq_apr * 100, 1) if hq_apr else 0
+    hq_mom_cls  = "kpi-green" if hq_mom >= 0 else "kpi-red"
+    hq_rank_rows = hq_sum[hq_sum["Corrected_HQ"] == selected_hq]
+    hq_rank     = hq_rank_rows.index[0] + 1 if len(hq_rank_rows) else "\u2014"
+
+    hq1,hq2,hq3,hq4,hq5,hq6 = st.columns(6)
+    kpi(hq1, ICO_REVENUE, "HQ Revenue",   fmt_inr(hq_rev_val),   f"Rank #{hq_rank}")
+    kpi(hq2, ICO_QTY,     "Qty Sold",     f"{int(hq_qty_val):,}", "Total units")
+    kpi(hq3, ICO_SPO,     "Active SPOs",  f"{hq_spo_cnt}",        hq_state)
+    kpi(hq4, ICO_PRODUCT, "SKUs Sold",    f"{hq_prods}",          "Unique products")
+    kpi(hq5, ICO_TREND,   "Apr Revenue",  fmt_inr(hq_apr),        "April 2026")
+    kpi(hq6, ICO_TREND,   "May Revenue",  fmt_inr(hq_may),        f"MoM: {hq_mom:+.1f}%", hq_mom_cls)
+
+    # SPO names from telephone directory for this HQ
+    dir_spos = _HQ_SPO_DIR.get(selected_hq, [])
+    if dir_spos:
+        st.markdown(
+            f"<div style='background:#1a1a1a;border:1px solid #2a2a2a;border-left:3px solid #66cc00;"            f"border-radius:8px;padding:10px 14px;margin:8px 0 4px 0;'>"            f"<span style='font-size:0.65rem;font-weight:600;color:#555;letter-spacing:0.1em;text-transform:uppercase;'>📋 Staff in {selected_hq} (Telephone Directory)</span><br>"            f"<span style='font-size:0.78rem;color:#aaa;line-height:1.8;'>{' &nbsp;·&nbsp; '.join(dir_spos)}</span></div>",
+            unsafe_allow_html=True)
+
+    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    hqc1, hqc2 = st.columns(2)
+    with hqc1:
+        clabel(f"SPOs operating in {selected_hq}")
+        hq_spo_bd = (hq_df.groupby("SPO", as_index=False)["Total_Amt"].sum()
+                          .sort_values("Total_Amt", ascending=False).sort_values("Total_Amt"))
+        fig_hq1 = go.Figure(go.Bar(
+            x=hq_spo_bd["Total_Amt"], y=hq_spo_bd["SPO"], orientation="h",
+            marker=dict(color=hq_spo_bd["Total_Amt"].astype(float), colorscale=REDS, showscale=False),
+            text=[fmt_inr(v) for v in hq_spo_bd["Total_Amt"]],
+            textposition="outside", textfont=dict(size=8, color=FONT),
+            hovertemplate="<b>%{y}</b><br>\u20b9%{x:,.0f}<extra></extra>",
+        ))
+        fig_hq1.update_layout(**BASE_LAYOUT, height=360,
+            xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+            yaxis=dict(showgrid=False, tickfont=dict(size=8)),
+            margin=dict(l=8, r=70, t=16, b=8))
+        st.plotly_chart(fig_hq1, use_container_width=True, config=CFG)
+    with hqc2:
+        clabel(f"Top Products in {selected_hq}")
+        hq_prod_bd = (hq_df.groupby("Product", as_index=False)["Total_Amt"].sum()
+                           .sort_values("Total_Amt", ascending=False).head(15).sort_values("Total_Amt"))
+        fig_hq2 = go.Figure(go.Bar(
+            x=hq_prod_bd["Total_Amt"], y=hq_prod_bd["Product"], orientation="h",
+            marker=dict(color=hq_prod_bd["Total_Amt"].astype(float), colorscale=GREENS, showscale=False),
+            text=[fmt_inr(v) for v in hq_prod_bd["Total_Amt"]],
+            textposition="outside", textfont=dict(size=8, color=FONT),
+            hovertemplate="<b>%{y}</b><br>\u20b9%{x:,.0f}<extra></extra>",
+        ))
+        fig_hq2.update_layout(**BASE_LAYOUT, height=360,
+            xaxis=dict(showgrid=True, gridcolor=GRID, tickformat=",.0f"),
+            yaxis=dict(showgrid=False, tickfont=dict(size=7)),
+            margin=dict(l=8, r=70, t=16, b=8))
+        st.plotly_chart(fig_hq2, use_container_width=True, config=CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCATTER
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_PERF, "Revenue vs Qty \u2014 Scatter View")
+c9, c10 = st.columns(2)
+with c9:
+    clabel("SPO Revenue vs Qty Sold (bubble = revenue size)")
+    max_r = spo_sum["Total_Amt"].max() or 1
+    sizes = (spo_sum["Total_Amt"] / max_r * 28 + 5).astype(float)
+    fig_sc1 = go.Figure(go.Scatter(
+        x=spo_sum["Total_Qty"], y=spo_sum["Total_Amt"], mode="markers",
+        text=spo_sum["SPO"].apply(lambda x: x[:18]+"\u2026" if len(x)>18 else x),
+        marker=dict(size=sizes, color=spo_sum["Total_Amt"].astype(float),
+                    colorscale=REDS, showscale=False,
+                    line=dict(color="rgba(255,255,255,0.12)", width=1)),
+        hovertemplate="<b>%{text}</b><br>Qty: %{x:,}<br>Revenue: \u20b9%{y:,.0f}<extra></extra>",
+    ))
+    fig_sc1.update_layout(**BASE_LAYOUT, height=360, margin=DEFAULT_MARGIN,
+        xaxis=dict(showgrid=True, gridcolor=GRID, title=dict(text="Sales Qty", font=dict(size=10))),
+        yaxis=dict(showgrid=True, gridcolor=GRID, title=dict(text="Revenue (\u20b9)", font=dict(size=10))))
+    st.plotly_chart(fig_sc1, use_container_width=True, config=CFG)
+with c10:
+    clabel("HQ Revenue vs SPO Count (bubble = revenue size)")
+    max_hr = hq_sum["Total_Amt"].max() or 1
+    hq_sizes = (hq_sum["Total_Amt"] / max_hr * 28 + 5).astype(float)
+    fig_sc2 = go.Figure(go.Scatter(
+        x=hq_sum["SPO_Count"], y=hq_sum["Total_Amt"], mode="markers",
+        text=hq_sum["Corrected_HQ"].apply(lambda x: x[:18]+"\u2026" if len(x)>18 else x),
+        marker=dict(size=hq_sizes, color=hq_sum["Total_Amt"].astype(float),
+                    colorscale=GREENS, showscale=False,
+                    line=dict(color="rgba(255,255,255,0.12)", width=1)),
+        hovertemplate="<b>%{text}</b><br>SPOs: %{x}<br>Revenue: \u20b9%{y:,.0f}<extra></extra>",
+    ))
+    fig_sc2.update_layout(**BASE_LAYOUT, height=360, margin=DEFAULT_MARGIN,
+        xaxis=dict(showgrid=True, gridcolor=GRID, title=dict(text="Active SPO Count", font=dict(size=10))),
+        yaxis=dict(showgrid=True, gridcolor=GRID, title=dict(text="Revenue (\u20b9)", font=dict(size=10))))
+    st.plotly_chart(fig_sc2, use_container_width=True, config=CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SPO RANKING TABLE
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_TABLE, "SPO Full Ranking Table")
+tbl = spo_sum.copy().reset_index(drop=True)
+tbl.insert(0, "#", range(1, len(tbl)+1))
+tbl["Revenue"] = tbl["Total_Amt"].apply(fmt_inr)
+tbl["Qty"]     = tbl["Total_Qty"].apply(lambda x: f"{int(x):,}")
+tbl["Apr Rev"] = tbl["Amt_Apr"].apply(fmt_inr)
+tbl["May Rev"] = tbl["Amt_May"].apply(fmt_inr)
+tbl["MoM %"]   = tbl["MoM_%"].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "\u2014")
+display_tbl = tbl[["#","SPO","HQ","Division","State","Apr Rev","May Rev","Revenue","Qty","Products","MoM %"]].copy()
+display_tbl.columns = ["#","SPO / MR","HQ","Division","State","Apr Rev","May Rev","Total Rev","Qty Sold","SKUs","MoM %"]
+st.dataframe(display_tbl, use_container_width=True, height=400, hide_index=True,
+    column_config={
+        "#":         st.column_config.NumberColumn("#", width="small"),
+        "SPO / MR":  st.column_config.TextColumn("SPO / MR"),
+        "HQ":        st.column_config.TextColumn("HQ", width="small"),
+        "Division":  st.column_config.TextColumn("Division", width="small"),
+        "State":     st.column_config.TextColumn("State", width="small"),
+        "Apr Rev":   st.column_config.TextColumn("Apr Rev", width="small"),
+        "May Rev":   st.column_config.TextColumn("May Rev", width="small"),
+        "Total Rev": st.column_config.TextColumn("Total Rev", width="small"),
+        "Qty Sold":  st.column_config.TextColumn("Qty Sold", width="small"),
+        "SKUs":      st.column_config.NumberColumn("SKUs", width="small"),
+        "MoM %":     st.column_config.TextColumn("MoM %", width="small"),
+    })
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HQ RANKING TABLE
+# ══════════════════════════════════════════════════════════════════════════════
+sec(SICO_TABLE, "HQ Full Ranking Table")
+hq_tbl = hq_sum.copy().reset_index(drop=True)
+hq_tbl.insert(0, "#", range(1, len(hq_tbl)+1))
+hq_tbl["Revenue"] = hq_tbl["Total_Amt"].apply(fmt_inr)
+hq_tbl["Qty"]     = hq_tbl["Total_Qty"].apply(lambda x: f"{int(x):,}")
+hq_tbl["Apr Rev"] = hq_tbl["Amt_Apr"].apply(fmt_inr)
+hq_tbl["May Rev"] = hq_tbl["Amt_May"].apply(fmt_inr)
+hq_tbl["MoM %"]   = hq_tbl["MoM_%"].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "\u2014")
+display_hq = hq_tbl[["#","Corrected_HQ","State","SPO_Count","SPO_Names","Apr Rev","May Rev","Revenue","Qty","Products","MoM %"]].copy()
+display_hq.columns = ["#","HQ","State","Active SPOs","SPO Names (Directory)","Apr Rev","May Rev","Total Rev","Qty Sold","SKUs","MoM %"]
+st.dataframe(display_hq, use_container_width=True, height=400, hide_index=True,
+    column_config={
+        "#":                      st.column_config.NumberColumn("#", width="small"),
+        "HQ":                     st.column_config.TextColumn("HQ"),
+        "State":                  st.column_config.TextColumn("State", width="small"),
+        "Active SPOs":            st.column_config.NumberColumn("Active SPOs", width="small"),
+        "SPO Names (Directory)": st.column_config.TextColumn("SPO Names (Directory)", width="large"),
+        "Apr Rev":                st.column_config.TextColumn("Apr Rev", width="small"),
+        "May Rev":                st.column_config.TextColumn("May Rev", width="small"),
+        "Total Rev":              st.column_config.TextColumn("Total Rev", width="small"),
+        "Qty Sold":               st.column_config.TextColumn("Qty Sold", width="small"),
+        "SKUs":                   st.column_config.NumberColumn("SKUs", width="small"),
+        "MoM %":                  st.column_config.TextColumn("MoM %", width="small"),
+    })
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RAW DATA + CSV
+# ══════════════════════════════════════════════════════════════════════════════
+with st.expander("\U0001f50d Raw Data Preview (filtered)", expanded=False):
+    st.dataframe(df.head(500), use_container_width=True, hide_index=True)
+
+csv_bytes = df.to_csv(index=False).encode("utf-8")
+st.download_button("\u2b07\ufe0f Download Filtered Data (CSV)", csv_bytes, "ENTOD_SPO_Filtered.csv", "text/csv")
+st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
+st.caption("ENTOD SPO-Wise Analytics \u00b7 Apr\u2013May 2026 \u00b7 Powered by Streamlit")
